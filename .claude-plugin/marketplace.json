@@ -1,0 +1,12 @@
+{
+  "name": "agent-marketplace",
+  "owner": {
+    "name": "upu"
+  },
+  "plugins": [
+    {
+      "name": "dev-flow",
+      "source": "./plugins/dev-flow"
+    }
+  ]
+}
