@@ -12,10 +12,10 @@ description: "マーケットプレイス経由でこのプラグインが正し
 ## 手順
 
 1. ユーザーに「dev-flowプラグイン（agent-marketplace経由）は正常に読み込まれています 🎉」と挨拶する。
-2. 現在のリポジトリ名とブランチ名を `git remote get-url origin` / `git branch --show-current` で
-   確認し、どのリポジトリからこのスキルが呼ばれたかを報告する。取得したURLは `@` より手前の
-   userinfo（トークン・ユーザー名・パスワードなど、認証情報が入り得る部分）を必ず伏せ、
-   ホスト名とパス部分のみ（例: `github.com/upu/Totonoe-Log.git`）を報告する。
+2. 現在のリポジトリ名とブランチ名を `git remote get-url origin` / `git branch --show-current` で確認し、どのリポジトリからこのスキルが呼ばれたかを報告する（取得に失敗した場合は「不明」とする）。
+   origin URL は生の値をそのまま出力せず、`@` より手前の userinfo（トークン等）を必ず伏せる。
+   HTTPS/SSH いずれもホスト名とパス部分のみを報告する（例: `github.com/upu/Totonoe-Log.git`）。
+   SSH 形式（例: `git@github.com:upu/Totonoe-Log.git`）は `github.com/upu/Totonoe-Log.git` のように `:` を `/` に正規化する。
 3. 疎通確認が目的であることを伝え、本番の開発フロースキル（plan-next, ship など）は
    別途このプラグインに追加されていく予定であることを補足する。
 
