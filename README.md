@@ -20,6 +20,11 @@ Claude Code 上で以下を実行してください。
 /plugin install dev-flow
 ```
 
+インストール後、Totonoe-Log や ghost-align など任意のリポジトリで、Claude Code のプロンプトに
+`hello-world スキルを使って疎通確認して` のように入力し `hello-world` スキルが起動できれば、
+マーケットプレイス経由での参照が正しく機能しています（現時点の `dev-flow` は疎通確認用の `hello-world` のみを含みます）。
+実運用スキル（plan-next, ship など）が揃い次第、このプレースホルダーは削除予定です。
+
 ## 参考ドキュメント
 
 - [Plugins reference](https://code.claude.com/docs/ja/plugins-reference)
