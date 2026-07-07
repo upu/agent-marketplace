@@ -1,6 +1,6 @@
 ---
 name: hello-world
-description: マーケットプレイス経由でこのプラグインが正しく参照・インストールされているかを確認するための動作確認用スキル。when use: agent-marketplaceの疎通確認をしたい、dev-flowプラグインが正しく読み込まれているか確認したい
+description: "マーケットプレイス経由でこのプラグインが正しく参照・インストールされているかを確認するための動作確認用スキル。when use: agent-marketplaceの疎通確認をしたい、dev-flowプラグインが正しく読み込まれているか確認したい"
 ---
 
 # Hello World（疎通確認）
@@ -12,8 +12,9 @@ description: マーケットプレイス経由でこのプラグインが正し�
 ## 手順
 
 1. ユーザーに「dev-flowプラグイン（agent-marketplace経由）は正常に読み込まれています 🎉」と挨拶する。
-2. 現在のリポジトリ名とブランチ名を `git remote -v` / `git branch --show-current` で確認し、
-   どのリポジトリからこのスキルが呼ばれたかを報告する。
+2. 現在のリポジトリ名とブランチ名を `git remote get-url origin` / `git branch --show-current` で
+   確認し、どのリポジトリからこのスキルが呼ばれたかを報告する。取得したURLに認証情報
+   （`https://<token>@...` のようなもの）が含まれる場合は、そのまま出力せず伏せて報告する。
 3. 疎通確認が目的であることを伝え、本番の開発フロースキル（plan-next, ship など）は
    別途このプラグインに追加されていく予定であることを補足する。
 
