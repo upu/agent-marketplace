@@ -20,6 +20,10 @@ Claude Code 上で以下を実行してください。
 /plugin install dev-flow
 ```
 
+インストール後、Totonoe-Log や ghost-align など任意のリポジトリで `hello-world` スキルが
+起動できれば、マーケットプレイス経由での参照が正しく機能しています（`dev-flow` に
+実運用スキルが揃い次第、このプレースホルダーは削除予定です）。
+
 ## 参考ドキュメント
 
 - [Plugins reference](https://code.claude.com/docs/ja/plugins-reference)
