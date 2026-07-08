@@ -183,14 +183,43 @@ function bumpPackageJsonVersion(packageJsonText, version) {
   return packageJsonText.replace(versionFieldRe, `$1${version}$2`);
 }
 
+/**
+ * Sync package-lock.json's version fields to a newly bumped package.json
+ * version, without invoking npm (so it works even without node_modules
+ * installed). Rewrites only the two fields that go stale, preserving all
+ * other formatting:
+ *  - the top-level `"version"` (the file's first "version" field, since it
+ *    precedes "packages"/"dependencies" in npm's key order)
+ *  - `packages[""].version`, present in lockfileVersion >= 2 lockfiles
+ *    (lockfileVersion 1 has no "packages" object, so that half is a no-op)
+ */
+function bumpPackageLockVersion(packageLockText, version) {
+  const topLevelRe = /^(\s*"version":\s*")[^"]*(")/m;
+  if (!topLevelRe.test(packageLockText)) {
+    throw new Error('Could not find a top-level "version" field in package-lock.json');
+  }
+  let result = packageLockText.replace(topLevelRe, `$1${version}$2`);
+
+  const rootPackageRe = /("packages"\s*:\s*\{\s*""\s*:\s*\{[\s\S]*?"version"\s*:\s*")[^"]*(")/;
+  if (rootPackageRe.test(result)) {
+    result = result.replace(rootPackageRe, `$1${version}$2`);
+  }
+
+  return result;
+}
+
 function main() {
   const version = process.argv[2];
   const root = path.resolve(process.argv[3] || process.cwd());
   const packageJsonPath = path.join(root, "package.json");
+  const packageLockPath = path.join(root, "package-lock.json");
   const changelogLabels = ["CHANGELOG.md", "CHANGELOG.ja.md"];
 
   const packageJsonText = fs.readFileSync(packageJsonPath, "utf8");
   const currentVersion = JSON.parse(packageJsonText).version;
+  const packageLockText = fs.existsSync(packageLockPath)
+    ? fs.readFileSync(packageLockPath, "utf8")
+    : null;
   const changelogs = changelogLabels.map((label) => ({
     label,
     path: path.join(root, label),
@@ -216,9 +245,13 @@ function main() {
   const date = todayIso();
   let newChangelogs;
   let newPackageJson;
+  let newPackageLock = null;
   try {
     newChangelogs = changelogs.map((c) => finalizeChangelog(c.text, version, repoUrl, date, c.label));
     newPackageJson = bumpPackageJsonVersion(packageJsonText, version);
+    if (packageLockText !== null) {
+      newPackageLock = bumpPackageLockVersion(packageLockText, version);
+    }
   } catch (err) {
     console.error(`::error::${err.message}`);
     process.exit(1);
@@ -226,8 +259,13 @@ function main() {
 
   changelogs.forEach((c, i) => fs.writeFileSync(c.path, newChangelogs[i]));
   fs.writeFileSync(packageJsonPath, newPackageJson);
+  if (newPackageLock !== null) {
+    fs.writeFileSync(packageLockPath, newPackageLock);
+  }
   console.log(
-    `Prepared release ${version} (from ${currentVersion}): ${changelogLabels.join(" and ")} finalized, package.json bumped.`
+    `Prepared release ${version} (from ${currentVersion}): ${changelogLabels.join(" and ")} finalized, package.json bumped${
+      newPackageLock !== null ? ", package-lock.json synced" : ""
+    }.`
   );
 }
 
@@ -239,6 +277,7 @@ module.exports = {
   validate,
   finalizeChangelog,
   bumpPackageJsonVersion,
+  bumpPackageLockVersion,
 };
 
 if (require.main === module) {

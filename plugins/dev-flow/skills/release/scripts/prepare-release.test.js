@@ -10,6 +10,7 @@ const {
   validate,
   finalizeChangelog,
   bumpPackageJsonVersion,
+  bumpPackageLockVersion,
 } = require("./prepare-release.js");
 
 const REPO_URL = "https://github.com/upu/ghost-align";
@@ -227,4 +228,62 @@ test("bumpPackageJsonVersion: version フィールドだけを書き換える", 
 
 test("bumpPackageJsonVersion: version フィールドが無ければ例外を投げる", () => {
   assert.throws(() => bumpPackageJsonVersion('{\n  "name": "x"\n}\n', "0.8.0"));
+});
+
+test("bumpPackageLockVersion: lockfileVersion 2 系ではトップレベルと packages[\"\"] の両方を書き換える", () => {
+  const lock = [
+    "{",
+    '  "name": "ghost-align",',
+    '  "version": "1.1.0",',
+    '  "lockfileVersion": 2,',
+    '  "requires": true,',
+    '  "packages": {',
+    '    "": {',
+    '      "name": "ghost-align",',
+    '      "version": "1.1.0",',
+    '      "license": "MIT",',
+    '      "dependencies": {',
+    '        "foo": "^1.0.0"',
+    "      }",
+    "    },",
+    '    "node_modules/foo": {',
+    '      "version": "1.0.0"',
+    "    }",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  const result = bumpPackageLockVersion(lock, "1.2.0");
+  const parsed = JSON.parse(result);
+  assert.equal(parsed.version, "1.2.0");
+  assert.equal(parsed.packages[""].version, "1.2.0");
+  // 依存パッケージ自身のバージョンは対象外
+  assert.equal(parsed.packages["node_modules/foo"].version, "1.0.0");
+});
+
+test("bumpPackageLockVersion: lockfileVersion 1 系（packages が無い）ではトップレベルだけ書き換える", () => {
+  const lock = [
+    "{",
+    '  "name": "ghost-align",',
+    '  "version": "1.1.0",',
+    '  "lockfileVersion": 1,',
+    '  "requires": true,',
+    '  "dependencies": {',
+    '    "foo": {',
+    '      "version": "1.0.0"',
+    "    }",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  const result = bumpPackageLockVersion(lock, "1.2.0");
+  const parsed = JSON.parse(result);
+  assert.equal(parsed.version, "1.2.0");
+  assert.equal(parsed.dependencies.foo.version, "1.0.0");
+});
+
+test("bumpPackageLockVersion: トップレベルの version フィールドが無ければ例外を投げる", () => {
+  assert.throws(() => bumpPackageLockVersion('{\n  "name": "x"\n}\n', "1.2.0"));
 });
