@@ -10,6 +10,7 @@ const {
   validate,
   finalizeChangelog,
   bumpPackageJsonVersion,
+  bumpPackageLockVersion,
 } = require("./prepare-release.js");
 
 const REPO_URL = "https://github.com/upu/ghost-align";
@@ -227,4 +228,181 @@ test("bumpPackageJsonVersion: version フィールドだけを書き換える", 
 
 test("bumpPackageJsonVersion: version フィールドが無ければ例外を投げる", () => {
   assert.throws(() => bumpPackageJsonVersion('{\n  "name": "x"\n}\n', "0.8.0"));
+});
+
+test("bumpPackageLockVersion: lockfileVersion 2 系ではトップレベルと packages[\"\"] の両方を書き換える", () => {
+  const lock = [
+    "{",
+    '  "name": "ghost-align",',
+    '  "version": "1.1.0",',
+    '  "lockfileVersion": 2,',
+    '  "requires": true,',
+    '  "packages": {',
+    '    "": {',
+    '      "name": "ghost-align",',
+    '      "version": "1.1.0",',
+    '      "license": "MIT",',
+    '      "dependencies": {',
+    '        "foo": "^1.0.0"',
+    "      }",
+    "    },",
+    '    "node_modules/foo": {',
+    '      "version": "1.0.0"',
+    "    }",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  const result = bumpPackageLockVersion(lock, "1.2.0");
+  const parsed = JSON.parse(result);
+  assert.equal(parsed.version, "1.2.0");
+  assert.equal(parsed.packages[""].version, "1.2.0");
+  // 依存パッケージ自身のバージョンは対象外
+  assert.equal(parsed.packages["node_modules/foo"].version, "1.0.0");
+});
+
+test("bumpPackageLockVersion: packages[\"\"] が先頭キーでなくても書き換える（キー順に依存しない）", () => {
+  const lock = [
+    "{",
+    '  "name": "ghost-align",',
+    '  "version": "1.1.0",',
+    '  "lockfileVersion": 2,',
+    '  "requires": true,',
+    '  "packages": {',
+    '    "node_modules/foo": {',
+    '      "version": "1.0.0"',
+    "    },",
+    '    "": {',
+    '      "name": "ghost-align",',
+    '      "version": "1.1.0"',
+    "    }",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  const result = bumpPackageLockVersion(lock, "1.2.0");
+  const parsed = JSON.parse(result);
+  assert.equal(parsed.version, "1.2.0");
+  assert.equal(parsed.packages[""].version, "1.2.0");
+  assert.equal(parsed.packages["node_modules/foo"].version, "1.0.0");
+});
+
+test("bumpPackageLockVersion: packages[\"\"] に version フィールドが無ければ、隣の依存の version を誤爆せず例外を投げる", () => {
+  const lock = [
+    "{",
+    '  "name": "ghost-align",',
+    '  "version": "1.1.0",',
+    '  "lockfileVersion": 2,',
+    '  "requires": true,',
+    '  "packages": {',
+    '    "": {',
+    '      "name": "ghost-align"',
+    "    },",
+    '    "node_modules/foo": {',
+    '      "version": "1.0.0"',
+    "    }",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  assert.throws(() => bumpPackageLockVersion(lock, "1.2.0"), /packages\[""\]\.version/);
+});
+
+test("bumpPackageLockVersion: packages はあるが \"\" キーが無ければ例外を投げる（サイレントスキップしない）", () => {
+  const lock = [
+    "{",
+    '  "name": "ghost-align",',
+    '  "version": "1.1.0",',
+    '  "lockfileVersion": 2,',
+    '  "requires": true,',
+    '  "packages": {',
+    '    "node_modules/foo": {',
+    '      "version": "1.0.0"',
+    "    }",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  assert.throws(() => bumpPackageLockVersion(lock, "1.2.0"), /packages\[""\]/);
+});
+
+test("bumpPackageLockVersion: packages の外にある \"\" キーに惑わされず、packages[\"\"] だけを書き換える", () => {
+  const lock = [
+    "{",
+    '  "name": "ghost-align",',
+    '  "version": "1.1.0",',
+    '  "lockfileVersion": 2,',
+    '  "requires": true,',
+    '  "decoy": {',
+    '    "": {',
+    '      "version": "9.9.9"',
+    "    }",
+    "  },",
+    '  "packages": {',
+    '    "": {',
+    '      "version": "1.1.0"',
+    "    },",
+    '    "node_modules/foo": {',
+    '      "version": "1.0.0"',
+    "    }",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  const result = bumpPackageLockVersion(lock, "1.2.0");
+  const parsed = JSON.parse(result);
+  assert.equal(parsed.version, "1.2.0");
+  assert.equal(parsed.packages[""].version, "1.2.0");
+  // packages の外側にある同名キーは対象外
+  assert.equal(parsed.decoy[""].version, "9.9.9");
+});
+
+test("bumpPackageLockVersion: 1行に圧縮された（minified）package-lock.json でも書き換えられる", () => {
+  const lock = JSON.stringify({
+    name: "ghost-align",
+    version: "1.1.0",
+    lockfileVersion: 2,
+    requires: true,
+    packages: {
+      "": { name: "ghost-align", version: "1.1.0" },
+      "node_modules/foo": { version: "1.0.0" },
+    },
+  });
+
+  const result = bumpPackageLockVersion(lock, "1.2.0");
+  const parsed = JSON.parse(result);
+  assert.equal(parsed.version, "1.2.0");
+  assert.equal(parsed.packages[""].version, "1.2.0");
+  assert.equal(parsed.packages["node_modules/foo"].version, "1.0.0");
+});
+
+test("bumpPackageLockVersion: lockfileVersion 1 系（packages が無い）ではトップレベルだけ書き換える", () => {
+  const lock = [
+    "{",
+    '  "name": "ghost-align",',
+    '  "version": "1.1.0",',
+    '  "lockfileVersion": 1,',
+    '  "requires": true,',
+    '  "dependencies": {',
+    '    "foo": {',
+    '      "version": "1.0.0"',
+    "    }",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  const result = bumpPackageLockVersion(lock, "1.2.0");
+  const parsed = JSON.parse(result);
+  assert.equal(parsed.version, "1.2.0");
+  assert.equal(parsed.dependencies.foo.version, "1.0.0");
+});
+
+test("bumpPackageLockVersion: トップレベルの version フィールドが無ければ例外を投げる", () => {
+  assert.throws(() => bumpPackageLockVersion('{\n  "name": "x"\n}\n', "1.2.0"));
 });

@@ -52,6 +52,7 @@ argument-hint: "[x.y.z]"
     - `CHANGELOG.md` と `CHANGELOG.ja.md` の `## [Unreleased]` が、当日ローカル日付付きの `## [x.y.z] - YYYY-MM-DD` に変更される。
     - 末尾リンク参照も更新され、`[Unreleased]` は `.../compare/vx.y.z...HEAD` に向き、新規 `[x.y.z]: .../releases/tag/vx.y.z` が追加される（リンクのホスト/オーナー/リポジトリ名は対象リポジトリの `git remote origin` から自動判定される）。
     - `package.json` の `"version"` も更新される。
+    - 対象リポジトリに `package-lock.json` があれば、そのトップレベル `"version"` と `packages[""].version` も同じ値に同期される（npm install は走らせない）。存在しないリポジトリ（yarn/pnpm 等）ではこの手順はスキップされる。
   - non-zero 終了時はエラーを読んで、エラーの原因を修正し、再実行する。手動でファイルを編集してはいけない。
 6. **テスト（ゲート）**
   - `npm run compile`、`npm test`、`npm run check:package` を実行。すべて成功必須。失敗状態では PR を作成しない。

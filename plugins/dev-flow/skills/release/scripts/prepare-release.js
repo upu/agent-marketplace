@@ -183,14 +183,161 @@ function bumpPackageJsonVersion(packageJsonText, version) {
   return packageJsonText.replace(versionFieldRe, `$1${version}$2`);
 }
 
+/**
+ * Find the index of the closing brace/bracket matching the opening one at
+ * `openIdx`, tracking JSON string literals (and backslash escapes within
+ * them) so braces that appear inside string values don't throw off the
+ * depth count.
+ */
+function findMatchingBracket(text, openIdx) {
+  const open = text[openIdx];
+  const close = open === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  for (let i = openIdx; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (ch === "\\") {
+        i++;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === open) {
+      depth++;
+    } else if (ch === close) {
+      depth--;
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
+/**
+ * Find where an object key `key` (given unescaped, e.g. `packages` or the
+ * empty string) opens an object value (`{`) within `text[fromIdx, toIdx)`.
+ * Scans the raw JSON text char-by-char, consuming whole string literals
+ * (honoring backslash escapes) as a unit rather than testing substrings
+ * against a regex — so `key` only matches an actual key position, never
+ * text that happens to appear inside an unrelated string value, and a
+ * candidate is confirmed only once it's followed by `:` and `{` (skipping
+ * insignificant whitespace). Returns the index of that `{`, or -1.
+ */
+function findObjectKeyBraceIndex(text, key, fromIdx = 0, toIdx = text.length) {
+  const quoted = `"${key}"`;
+  let i = fromIdx;
+  while (i < toIdx) {
+    if (text[i] !== '"') {
+      i++;
+      continue;
+    }
+    const literalStart = i;
+    i++;
+    while (i < toIdx) {
+      if (text[i] === "\\") {
+        i += 2;
+        continue;
+      }
+      if (text[i] === '"') {
+        i++;
+        break;
+      }
+      i++;
+    }
+    if (text.slice(literalStart, i) === quoted) {
+      let j = i;
+      while (j < toIdx && /\s/.test(text[j])) j++;
+      if (text[j] === ":") {
+        j++;
+        while (j < toIdx && /\s/.test(text[j])) j++;
+        if (text[j] === "{") {
+          return j;
+        }
+      }
+    }
+  }
+  return -1;
+}
+
+/**
+ * Sync package-lock.json's version fields to a newly bumped package.json
+ * version, without invoking npm (so it works even without node_modules
+ * installed). Rewrites only the two fields that go stale, preserving all
+ * other formatting:
+ *  - the top-level `"version"` (the file's first "version" field, since it
+ *    precedes "packages"/"dependencies" in npm's key order — this holds for
+ *    both pretty-printed and minified/single-line lockfiles, so the regex
+ *    isn't anchored to line starts)
+ *  - `packages[""].version`, present in lockfileVersion >= 2 lockfiles
+ *    (lockfileVersion 1 has no "packages" object, so that half is a no-op)
+ *
+ * `packages[""]` is located by first finding the top-level "packages" key
+ * (via `findObjectKeyBraceIndex`, not by assuming it's the first entry
+ * under "packages" — key order isn't a JSON guarantee even though npm
+ * always emits it first in practice), then searching only within that
+ * object's brace-matched span for the `""` key — so a stray `"": {`
+ * elsewhere in the file (or embedded in a string value) can't be mistaken
+ * for the root package entry. Each object's span is found via brace
+ * matching, not a regex spanning to the first "version" text, so a root
+ * entry without its own "version" field can't cause the replacement to
+ * overrun into a sibling package's fields. If `packages[""]` exists per a
+ * real JSON parse but can't be located/updated in the text, this throws
+ * rather than silently leaving the two files out of sync.
+ */
+function bumpPackageLockVersion(packageLockText, version) {
+  const topLevelVersionRe = /("version"\s*:\s*")[^"]*(")/;
+  if (!topLevelVersionRe.test(packageLockText)) {
+    throw new Error('Could not find a top-level "version" field in package-lock.json');
+  }
+  let result = packageLockText.replace(topLevelVersionRe, `$1${version}$2`);
+
+  const parsed = JSON.parse(packageLockText);
+  if (parsed.packages) {
+    if (!Object.prototype.hasOwnProperty.call(parsed.packages, "")) {
+      throw new Error('Could not find packages[""] in package-lock.json to sync its version');
+    }
+
+    const packagesOpenIdx = findObjectKeyBraceIndex(result, "packages");
+    const packagesCloseIdx =
+      packagesOpenIdx === -1 ? -1 : findMatchingBracket(result, packagesOpenIdx);
+    const rootOpenIdx =
+      packagesCloseIdx === -1
+        ? -1
+        : findObjectKeyBraceIndex(result, "", packagesOpenIdx, packagesCloseIdx);
+    const rootCloseIdx = rootOpenIdx === -1 ? -1 : findMatchingBracket(result, rootOpenIdx);
+    if (rootOpenIdx === -1 || rootCloseIdx === -1) {
+      throw new Error('Could not find packages[""] in package-lock.json to sync its version');
+    }
+
+    const rootObjectText = result.slice(rootOpenIdx, rootCloseIdx + 1);
+    const versionFieldRe = /("version"\s*:\s*")[^"]*(")/;
+    if (!versionFieldRe.test(rootObjectText)) {
+      throw new Error('Could not find packages[""].version in package-lock.json to sync');
+    }
+    const newRootObjectText = rootObjectText.replace(versionFieldRe, `$1${version}$2`);
+    result = result.slice(0, rootOpenIdx) + newRootObjectText + result.slice(rootCloseIdx + 1);
+  }
+
+  return result;
+}
+
 function main() {
   const version = process.argv[2];
   const root = path.resolve(process.argv[3] || process.cwd());
   const packageJsonPath = path.join(root, "package.json");
+  const packageLockPath = path.join(root, "package-lock.json");
   const changelogLabels = ["CHANGELOG.md", "CHANGELOG.ja.md"];
 
   const packageJsonText = fs.readFileSync(packageJsonPath, "utf8");
   const currentVersion = JSON.parse(packageJsonText).version;
+  const packageLockText = fs.existsSync(packageLockPath)
+    ? fs.readFileSync(packageLockPath, "utf8")
+    : null;
   const changelogs = changelogLabels.map((label) => ({
     label,
     path: path.join(root, label),
@@ -216,9 +363,13 @@ function main() {
   const date = todayIso();
   let newChangelogs;
   let newPackageJson;
+  let newPackageLock = null;
   try {
     newChangelogs = changelogs.map((c) => finalizeChangelog(c.text, version, repoUrl, date, c.label));
     newPackageJson = bumpPackageJsonVersion(packageJsonText, version);
+    if (packageLockText !== null) {
+      newPackageLock = bumpPackageLockVersion(packageLockText, version);
+    }
   } catch (err) {
     console.error(`::error::${err.message}`);
     process.exit(1);
@@ -226,8 +377,13 @@ function main() {
 
   changelogs.forEach((c, i) => fs.writeFileSync(c.path, newChangelogs[i]));
   fs.writeFileSync(packageJsonPath, newPackageJson);
+  if (newPackageLock !== null) {
+    fs.writeFileSync(packageLockPath, newPackageLock);
+  }
   console.log(
-    `Prepared release ${version} (from ${currentVersion}): ${changelogLabels.join(" and ")} finalized, package.json bumped.`
+    `Prepared release ${version} (from ${currentVersion}): ${changelogLabels.join(" and ")} finalized, package.json bumped${
+      newPackageLock !== null ? ", package-lock.json synced" : ""
+    }.`
   );
 }
 
@@ -239,6 +395,7 @@ module.exports = {
   validate,
   finalizeChangelog,
   bumpPackageJsonVersion,
+  bumpPackageLockVersion,
 };
 
 if (require.main === module) {
