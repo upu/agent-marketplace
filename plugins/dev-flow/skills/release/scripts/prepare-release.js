@@ -51,17 +51,25 @@ function todayIso(date = new Date()) {
 
 /**
  * Normalize a `git remote` URL to an `https://host/owner/repo` form, stripping
- * a trailing `.git`, rewriting the SSH form (`git@host:owner/repo`) to HTTPS,
+ * a trailing `.git`, rewriting the SSH forms (the SCP-like `git@host:owner/repo`
+ * as well as an explicit `ssh://[user@]host[:port]/owner/repo` URL) to HTTPS,
  * and stripping any embedded userinfo (e.g. `https://<token>@host/...`) so a
  * credential embedded in the origin URL never ends up committed into a
  * CHANGELOG link reference.
  */
 function normalizeRemoteUrl(raw) {
   let url = raw.trim().replace(/\.git$/, "");
-  const sshMatch = /^git@([^:]+):(.+)$/.exec(url);
-  if (sshMatch) {
-    url = `https://${sshMatch[1]}/${sshMatch[2]}`;
+
+  const sshUrlMatch = /^ssh:\/\/(?:[^@/]+@)?([^:/]+)(?::\d+)?\/(.+)$/.exec(url);
+  if (sshUrlMatch) {
+    return `https://${sshUrlMatch[1]}/${sshUrlMatch[2]}`;
   }
+
+  const scpMatch = /^git@([^:]+):(.+)$/.exec(url);
+  if (scpMatch) {
+    url = `https://${scpMatch[1]}/${scpMatch[2]}`;
+  }
+
   url = url.replace(/^(https?:\/\/)[^@/]+@/, "$1");
   return url;
 }
@@ -92,7 +100,13 @@ function findUnreleasedBody(changelogText, label = "CHANGELOG.md") {
     endIdx = lines.length;
   }
   const body = lines.slice(startIdx + 1, endIdx);
-  return { lines, eol, startIdx, hasEntries: body.some((l) => l.trim().length > 0) };
+  // A bare subheading (e.g. "### Added" with nothing under it) is not a real
+  // entry, so it must not count toward hasEntries.
+  const hasEntries = body.some((l) => {
+    const trimmed = l.trim();
+    return trimmed.length > 0 && !/^#{1,6}\s/.test(trimmed);
+  });
+  return { lines, eol, startIdx, hasEntries };
 }
 
 /**

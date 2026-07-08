@@ -67,10 +67,21 @@ test("normalizeRemoteUrl: HTTPS の .git はそのまま拡張子だけ落とす
   );
 });
 
-test("normalizeRemoteUrl: SSH 形式を HTTPS に正規化する", () => {
+test("normalizeRemoteUrl: SSH 形式（SCP風）を HTTPS に正規化する", () => {
   assert.equal(
     normalizeRemoteUrl("git@github.com:upu/Totonoe-Log.git"),
     "https://github.com/upu/Totonoe-Log"
+  );
+});
+
+test("normalizeRemoteUrl: ssh:// 形式の URL も HTTPS に正規化する", () => {
+  assert.equal(
+    normalizeRemoteUrl("ssh://git@github.com/upu/ghost-align.git"),
+    REPO_URL
+  );
+  assert.equal(
+    normalizeRemoteUrl("ssh://git@github.com:22/upu/ghost-align.git"),
+    REPO_URL
   );
 });
 
@@ -133,6 +144,12 @@ test("validate: 両ファイルにエントリがあれば null を返す", () =
     validate("0.8.0", "0.7.0", changelogs(SAMPLE_CHANGELOG_EN, SAMPLE_CHANGELOG)),
     null
   );
+});
+
+test("validate: 見出し（### Added）だけで実エントリが無ければ空扱いでエラーを返す", () => {
+  const headingOnly = SAMPLE_CHANGELOG_EN.replace("- Added a feature。\n\n", "");
+  const error = validate("0.8.0", "0.7.0", changelogs(headingOnly, SAMPLE_CHANGELOG));
+  assert.match(error ?? "", /CHANGELOG\.md/);
 });
 
 test("finalizeChangelog: 見出しの確定・空の Unreleased の再挿入・リンク参照の更新", () => {
