@@ -1,8 +1,9 @@
-// Deterministically finalizes CHANGELOG.md's [Unreleased] section into a
-// dated release and bumps package.json's version, so the `release` skill only
-// judges SemVer and confirms scope instead of hand-editing these files every
-// time. Fails with no writes to either file if the version argument is
-// invalid, not newer than the current version, or [Unreleased] is empty.
+// Deterministically finalizes CHANGELOG.md's and CHANGELOG.ja.md's
+// [Unreleased] sections into a dated release and bumps package.json's
+// version, so the `release` skill only judges SemVer and confirms scope
+// instead of hand-editing these files every time. Fails with no writes to
+// any of the three files if the version argument is invalid, not newer than
+// the current version, or either CHANGELOG's [Unreleased] is empty.
 //
 // Ported from ghost-align's scripts/prepare-release.js. Unlike the original,
 // this copy does not hardcode a repository URL — it derives one from the
