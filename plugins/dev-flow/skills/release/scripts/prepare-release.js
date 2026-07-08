@@ -21,8 +21,15 @@ const { execSync } = require("node:child_process");
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
 const UNRELEASED_HEADING = "## [Unreleased]";
 
+/**
+ * Pick the file's dominant line ending by counting CRLF vs. bare-LF
+ * occurrences, rather than switching to CRLF the moment a single stray CRLF
+ * appears in an otherwise LF file (or vice versa).
+ */
 function detectEol(text) {
-  return text.includes("\r\n") ? "\r\n" : "\n";
+  const crlfCount = (text.match(/\r\n/g) || []).length;
+  const bareLfCount = (text.match(/(?<!\r)\n/g) || []).length;
+  return crlfCount > bareLfCount ? "\r\n" : "\n";
 }
 
 /** Collapse CRLF/CR to LF so line-splitting is correct even if a file has stray mixed newlines. */

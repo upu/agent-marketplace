@@ -188,6 +188,16 @@ test("finalizeChangelog: 大部分が CRLF で一部だけ LF という混在入
   assert.ok(result.includes("- 新機能を追加。"));
 });
 
+test("finalizeChangelog: 大部分が LF で一部だけ CRLF が混入していても LF のまま書き戻す（多数派判定）", () => {
+  // 逆方向の混在: ベースは LF だが、どこか1行だけ CRLF が紛れ込んだケース。
+  // 「CRLF が1つでもあれば全体 CRLF」という判定だと、この1行だけで出力全体が CRLF に化けてしまう。
+  const mixed = SAMPLE_CHANGELOG.replace("- 新機能を追加。\n", "- 新機能を追加。\r\n");
+  const result = finalizeChangelog(mixed, "0.8.0", REPO_URL, "2026-07-10");
+  const crlfCount = (result.match(/\r\n/g) ?? []).length;
+  assert.equal(crlfCount, 0);
+  assert.ok(result.includes("## [0.8.0] - 2026-07-10"));
+});
+
 test("finalizeChangelog: Unreleased 見出しが無ければ例外を投げる", () => {
   assert.throws(() => finalizeChangelog("# Changelog\n", "0.8.0", REPO_URL, "2026-07-10"));
 });
