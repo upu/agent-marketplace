@@ -1,4 +1,7 @@
 {
   "name": "dev-flow",
-  "description": "開発フローを支援するスキル集"
+  "description": "開発フローを支援するスキル集",
+  "author": {
+    "name": "upu"
+  }
 }

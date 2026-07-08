@@ -7,7 +7,7 @@ upu の開発プロジェクト（[Totonoe-Log](https://github.com/upu/Totonoe-L
 
 | プラグイン | 説明 |
 | --- | --- |
-| [dev-flow](./plugins/dev-flow) | 開発フローを支援するスキル集（plan-next, ship など） |
+| [dev-flow](./plugins/dev-flow) | 開発フローを支援するスキル集（release など） |
 
 今後、VSCode 拡張機能開発に特化した `vscode-ext-toolkit` プラグインの追加を予定しています。
 
@@ -33,9 +33,9 @@ Claude Code 上で以下を実行してください。
 ```
 
 インストール後、Totonoe-Log や ghost-align など任意のリポジトリで、Claude Code のプロンプトに
-`hello-world スキルを使って疎通確認して` のように入力し `hello-world` スキルが起動できれば、
-マーケットプレイス経由での参照が正しく機能しています（現時点の `dev-flow` は疎通確認用の `hello-world` のみを含みます）。
-実運用スキル（plan-next, ship など）が揃い次第、このプレースホルダーは削除予定です。
+`x.y.z をリリースして` のように入力し `release` スキルが起動できれば、
+マーケットプレイス経由での参照が正しく機能しています。現時点の `dev-flow` はバージョンリリース作業を支援する
+`release` スキルを含みます。実運用スキルは今後も随時追加予定です。
 
 ## 参考ドキュメント
 
