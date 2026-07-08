@@ -7,7 +7,7 @@ argument-hint: "[x.y.z]"
 # バージョンをリリースする
 
 このスキルでは、CHANGELOG と package.json の version 情報を更新し、release workflow を実行して GitHub Release と Marketplace 公開を行う。
-`$ARGUMENTS` はターゲットバージョン `x.y.z`（先頭に `v` は付けない）。
+`$ARGUMENTS` はターゲットバージョン `x.y.z`（先頭に `v` は付けない）。省略した場合は手順1でマイルストーンから自動決定する。以降の手順は、`$ARGUMENTS` そのものではなく、手順1で確定した対象バージョンを使って進める。
 
 ## 責務の境界
 
@@ -30,9 +30,11 @@ argument-hint: "[x.y.z]"
   - `$ARGUMENTS` が空の場合は、進捗が 100% 完了のマイルストーンを自動選択し、そのタイトル（例: `vx.y.z`）から対象バージョンを決定する。該当なし、または複数ある場合はユーザー確認を取る。
   - `$ARGUMENTS` が空でない場合は、SemVer 形式の `x.y.z` であることを確認する。形式不正の場合はエラー終了する。
     - version の先頭に `v` が付いている場合は、`vx.y.z` から `v` を除去して `x.y.z` として扱う。
+    - 確認できたら、この `x.y.z` を対象バージョンとする。
   - `$ARGUMENTS` が空でない場合は、`vx.y.z` マイルストーンが存在し、かつ進捗が 100% 完了であることを確認する。
     - 存在しない場合はエラー終了する。
     - 進捗が 100% 完了でない場合は、ユーザーに確認する — 「今回のマイルストーンから外す（次版に繰り越すなど）」か「リリースを中止する」か。ここでユーザーの判断が出るまで先に進まない。
+  - **以降の手順では、ここで確定した対象バージョンを使う（`$ARGUMENTS` が空だった場合でも、この時点で具体的な `x.y.z` が確定している）。**
 2. **事前確認**
   - 作業ツリーがクリーンで `origin/main` が最新であることを確認する（`git fetch origin`）
   - `CHANGELOG.md`（英語・正本）と `CHANGELOG.ja.md` の `## [Unreleased]` を読む。
@@ -46,7 +48,7 @@ argument-hint: "[x.y.z]"
 4. **最新 main からブランチ作成**
   - `git checkout -b release/v<x.y.z> origin/main`
 5. **リリース準備**
-  - このスキルに同梱の `node "${CLAUDE_PLUGIN_ROOT}/skills/release/scripts/prepare-release.js" $ARGUMENTS` を実行する（`$ARGUMENTS` は手順1で確定した対象バージョン `x.y.z`。対象リポジトリの `npm run prepare-release` には依存しない）。これにより、以下の反映が行われる。
+  - このスキルに同梱の `node "${CLAUDE_PLUGIN_ROOT}/skills/release/scripts/prepare-release.js" <対象バージョン>` を実行する（`<対象バージョン>` は手順1で確定した `x.y.z`。`$ARGUMENTS` が空だった場合はマイルストーンから自動決定した値を使う。対象リポジトリの `npm run prepare-release` には依存しない）。これにより、以下の反映が行われる。
     - `CHANGELOG.md` と `CHANGELOG.ja.md` の `## [Unreleased]` が、当日ローカル日付付きの `## [x.y.z] - YYYY-MM-DD` に変更される。
     - 末尾リンク参照も更新され、`[Unreleased]` は `.../compare/vx.y.z...HEAD` に向き、新規 `[x.y.z]: .../releases/tag/vx.y.z` が追加される（リンクのホスト/オーナー/リポジトリ名は対象リポジトリの `git remote origin` から自動判定される）。
     - `package.json` の `"version"` も更新される。
