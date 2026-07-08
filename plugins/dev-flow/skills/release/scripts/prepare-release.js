@@ -51,8 +51,10 @@ function todayIso(date = new Date()) {
 
 /**
  * Normalize a `git remote` URL to an `https://host/owner/repo` form, stripping
- * a trailing `.git` and rewriting the SSH form (`git@host:owner/repo`) to
- * HTTPS. Mirrors the normalization used by the `hello-world` skill.
+ * a trailing `.git`, rewriting the SSH form (`git@host:owner/repo`) to HTTPS,
+ * and stripping any embedded userinfo (e.g. `https://<token>@host/...`) so a
+ * credential embedded in the origin URL never ends up committed into a
+ * CHANGELOG link reference.
  */
 function normalizeRemoteUrl(raw) {
   let url = raw.trim().replace(/\.git$/, "");
@@ -60,6 +62,7 @@ function normalizeRemoteUrl(raw) {
   if (sshMatch) {
     url = `https://${sshMatch[1]}/${sshMatch[2]}`;
   }
+  url = url.replace(/^(https?:\/\/)[^@/]+@/, "$1");
   return url;
 }
 

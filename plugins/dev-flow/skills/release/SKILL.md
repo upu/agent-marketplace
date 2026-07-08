@@ -46,7 +46,7 @@ argument-hint: <x.y.z>
 4. **最新 main からブランチ作成**
   - `git checkout -b release/v<x.y.z> origin/main`
 5. **リリース準備**
-  - このスキルに同梱の `node "${CLAUDE_PLUGIN_ROOT}/skills/release/scripts/prepare-release.js" x.y.z` を実行する（対象リポジトリの `npm run prepare-release` には依存しない）。これにより、以下の反映が行われる。
+  - このスキルに同梱の `node "${CLAUDE_PLUGIN_ROOT}/skills/release/scripts/prepare-release.js" $ARGUMENTS` を実行する（`$ARGUMENTS` は手順1で確定した対象バージョン `x.y.z`。対象リポジトリの `npm run prepare-release` には依存しない）。これにより、以下の反映が行われる。
     - `CHANGELOG.md` と `CHANGELOG.ja.md` の `## [Unreleased]` が、当日ローカル日付付きの `## [x.y.z] - YYYY-MM-DD` に変更される。
     - 末尾リンク参照も更新され、`[Unreleased]` は `.../compare/vx.y.z...HEAD` に向き、新規 `[x.y.z]: .../releases/tag/vx.y.z` が追加される（リンクのホスト/オーナー/リポジトリ名は対象リポジトリの `git remote origin` から自動判定される）。
     - `package.json` の `"version"` も更新される。

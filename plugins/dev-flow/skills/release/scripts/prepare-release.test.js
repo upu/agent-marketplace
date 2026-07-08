@@ -74,6 +74,17 @@ test("normalizeRemoteUrl: SSH 形式を HTTPS に正規化する", () => {
   );
 });
 
+test("normalizeRemoteUrl: HTTPS の userinfo（token等）を除去する", () => {
+  assert.equal(
+    normalizeRemoteUrl("https://ghp_dummyToken123@github.com/upu/ghost-align.git"),
+    REPO_URL
+  );
+  assert.equal(
+    normalizeRemoteUrl("https://x-access-token:ghp_dummyToken123@github.com/upu/ghost-align.git"),
+    REPO_URL
+  );
+});
+
 test("repoUrlFromGit: git コマンドの出力を正規化して返す", () => {
   const fakeExec = () => "git@github.com:upu/ghost-align.git\n";
   assert.equal(repoUrlFromGit("/tmp/anything", fakeExec), REPO_URL);
