@@ -262,6 +262,74 @@ test("bumpPackageLockVersion: lockfileVersion 2 系ではトップレベルと p
   assert.equal(parsed.packages["node_modules/foo"].version, "1.0.0");
 });
 
+test("bumpPackageLockVersion: packages[\"\"] が先頭キーでなくても書き換える（キー順に依存しない）", () => {
+  const lock = [
+    "{",
+    '  "name": "ghost-align",',
+    '  "version": "1.1.0",',
+    '  "lockfileVersion": 2,',
+    '  "requires": true,',
+    '  "packages": {',
+    '    "node_modules/foo": {',
+    '      "version": "1.0.0"',
+    "    },",
+    '    "": {',
+    '      "name": "ghost-align",',
+    '      "version": "1.1.0"',
+    "    }",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  const result = bumpPackageLockVersion(lock, "1.2.0");
+  const parsed = JSON.parse(result);
+  assert.equal(parsed.version, "1.2.0");
+  assert.equal(parsed.packages[""].version, "1.2.0");
+  assert.equal(parsed.packages["node_modules/foo"].version, "1.0.0");
+});
+
+test("bumpPackageLockVersion: packages[\"\"] に version フィールドが無ければ、隣の依存の version を誤爆せず例外を投げる", () => {
+  const lock = [
+    "{",
+    '  "name": "ghost-align",',
+    '  "version": "1.1.0",',
+    '  "lockfileVersion": 2,',
+    '  "requires": true,',
+    '  "packages": {',
+    '    "": {',
+    '      "name": "ghost-align"',
+    "    },",
+    '    "node_modules/foo": {',
+    '      "version": "1.0.0"',
+    "    }",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  assert.throws(() => bumpPackageLockVersion(lock, "1.2.0"), /packages\[""\]\.version/);
+});
+
+test("bumpPackageLockVersion: packages はあるが \"\" キーが無ければ例外を投げる（サイレントスキップしない）", () => {
+  const lock = [
+    "{",
+    '  "name": "ghost-align",',
+    '  "version": "1.1.0",',
+    '  "lockfileVersion": 2,',
+    '  "requires": true,',
+    '  "packages": {',
+    '    "node_modules/foo": {',
+    '      "version": "1.0.0"',
+    "    }",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  assert.throws(() => bumpPackageLockVersion(lock, "1.2.0"), /packages\[""\]/);
+});
+
 test("bumpPackageLockVersion: lockfileVersion 1 系（packages が無い）ではトップレベルだけ書き換える", () => {
   const lock = [
     "{",

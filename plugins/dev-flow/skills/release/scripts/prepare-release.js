@@ -184,6 +184,41 @@ function bumpPackageJsonVersion(packageJsonText, version) {
 }
 
 /**
+ * Find the index of the closing brace/bracket matching the opening one at
+ * `openIdx`, tracking JSON string literals (and backslash escapes within
+ * them) so braces that appear inside string values don't throw off the
+ * depth count.
+ */
+function findMatchingBracket(text, openIdx) {
+  const open = text[openIdx];
+  const close = open === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  for (let i = openIdx; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (ch === "\\") {
+        i++;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === open) {
+      depth++;
+    } else if (ch === close) {
+      depth--;
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
+/**
  * Sync package-lock.json's version fields to a newly bumped package.json
  * version, without invoking npm (so it works even without node_modules
  * installed). Rewrites only the two fields that go stale, preserving all
@@ -192,6 +227,16 @@ function bumpPackageJsonVersion(packageJsonText, version) {
  *    precedes "packages"/"dependencies" in npm's key order)
  *  - `packages[""].version`, present in lockfileVersion >= 2 lockfiles
  *    (lockfileVersion 1 has no "packages" object, so that half is a no-op)
+ *
+ * `packages[""]` is located by its literal `"": {` key text rather than by
+ * assuming it's the first entry under "packages" — key order isn't a JSON
+ * guarantee, even though npm always emits it first in practice. Its object
+ * span is found via brace-matching (not a regex spanning to the first
+ * "version" text), so a root entry without its own "version" field can't
+ * cause the replacement to overrun into a sibling package's fields. If
+ * `packages[""]` exists per a real JSON parse but can't be located/updated
+ * in the text, this throws rather than silently leaving the two files
+ * out of sync.
  */
 function bumpPackageLockVersion(packageLockText, version) {
   const topLevelRe = /^(\s*"version":\s*")[^"]*(")/m;
@@ -200,9 +245,26 @@ function bumpPackageLockVersion(packageLockText, version) {
   }
   let result = packageLockText.replace(topLevelRe, `$1${version}$2`);
 
-  const rootPackageRe = /("packages"\s*:\s*\{\s*""\s*:\s*\{[\s\S]*?"version"\s*:\s*")[^"]*(")/;
-  if (rootPackageRe.test(result)) {
-    result = result.replace(rootPackageRe, `$1${version}$2`);
+  const parsed = JSON.parse(packageLockText);
+  if (parsed.packages) {
+    if (!Object.prototype.hasOwnProperty.call(parsed.packages, "")) {
+      throw new Error('Could not find packages[""] in package-lock.json to sync its version');
+    }
+
+    const rootKeyMatch = /""\s*:\s*\{/.exec(result);
+    const openIdx = rootKeyMatch ? rootKeyMatch.index + rootKeyMatch[0].length - 1 : -1;
+    const closeIdx = openIdx === -1 ? -1 : findMatchingBracket(result, openIdx);
+    if (openIdx === -1 || closeIdx === -1) {
+      throw new Error('Could not find packages[""] in package-lock.json to sync its version');
+    }
+
+    const rootObjectText = result.slice(openIdx, closeIdx + 1);
+    const versionFieldRe = /("version"\s*:\s*")[^"]*(")/;
+    if (!versionFieldRe.test(rootObjectText)) {
+      throw new Error('Could not find packages[""].version in package-lock.json to sync');
+    }
+    const newRootObjectText = rootObjectText.replace(versionFieldRe, `$1${version}$2`);
+    result = result.slice(0, openIdx) + newRootObjectText + result.slice(closeIdx + 1);
   }
 
   return result;
