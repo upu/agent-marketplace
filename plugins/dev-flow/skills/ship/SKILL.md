@@ -27,7 +27,7 @@ argument-hint: "[<issue番号>]"
      prev=""
      while true; do
        out=$(gh pr checks <pr> --json name,bucket --jq '
-         if any(.[]; .bucket=="fail") then "FAILED:" + ([.[] | select(.bucket=="fail") | .name] | join(","))
+         if any(.[]; .bucket=="fail" or .bucket=="cancel") then "FAILED:" + ([.[] | select(.bucket=="fail" or .bucket=="cancel") | .name] | join(","))
          elif all(.[]; .bucket!="pending") then "DONE:" + ([.[] | "\(.name)=\(.bucket)"] | join(","))
          else ([.[] | select(.bucket!="pending") | "\(.name)=\(.bucket)"] | join(",")) end
        ' 2>&1)
