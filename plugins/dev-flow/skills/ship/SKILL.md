@@ -22,7 +22,7 @@ argument-hint: "[<issue番号>]"
 7. **コミットする** — `git status` / `git diff` で意図した変更だけがステージされていることを確認し、リポジトリの直近のコミット履歴のスタイル（言語・書式）に合わせて、末尾に `Closes #$ARGUMENTS` を付けてコミットする。
 8. **プッシュ & PR** — `git push -u origin <branch>` の後、`gh pr create --base main` でPRを作成する。`.github/pull_request_template.md` が存在すればその構成に沿って本文を書き、無ければ変更内容の要約でよい。いずれも末尾に `Closes #$ARGUMENTS` を付ける。テストが通ったこと、CHANGELOGを追記した（またはN/Aである）ことを本文に反映する。
 9. **CIを待つ** — Bashツールが使える環境ではMonitorツールで背景監視し、完了通知を待つ（Monitorは状態変化・完了時に自動でこちらへ通知が届く設計のため、フォアグラウンドでブロックしなくても「発火し忘れる」「後のターンで継ぎ足すのを忘れる」といった事故は起きない）。PowerShellのみの環境ではMonitorが使えないため、従来通り単一のフォアグラウンド呼び出しでブロックする。
-   - **Bashツールが使える環境**: 次のスクリプトをMonitorツールに渡す（`timeout_ms` は長めに、例 1200000 = 20分。`persistent` はfalseでよい）。外部の `jq` コマンドには依存せず、`gh` に内蔵された `--jq` のみを使う（開発機に `jq` 本体が入っているとは限らないため）。チェックが確定するたびに1行emitし、いずれかが失敗すれば即座に、全て完了すれば結果を出して終了する（沈黙のまま止まらないよう、成功・失敗どちらの終端状態も拾う）。
+   - **Bashツールが使える環境**: 次のスクリプトをMonitorツールに渡す（`timeout_ms` は長めに、例 1200000 = 20分。`persistent` はfalseでよい）。外部の `jq` コマンドには依存せず、`gh` に内蔵された `--jq` のみを使う（開発機に `jq` 本体が入っているとは限らないため）。チェックが確定するたびに1行emitし、いずれかが失敗すれば即座に、全て完了すれば結果を出して終了する（沈黙のまま止まらないよう、成功・失敗どちらの終端状態も拾う）。**このリポジトリにCI設定が無い（PRに紐づくチェックが1件も無い）場合、`gh pr checks` はJSONを返さず非ゼロ終了し `no checks reported on the '<branch>' branch` をstderrに出す**（実PRで確認済み）——このケースを空配列として扱おうとすると `--jq` 自体が実行されず意図通りに動かないため、エラー出力を明示的に検知して待たずに抜ける。
      ```
      prev=""
      while true; do
@@ -30,7 +30,16 @@ argument-hint: "[<issue番号>]"
          if any(.[]; .bucket=="fail") then "FAILED:" + ([.[] | select(.bucket=="fail") | .name] | join(","))
          elif all(.[]; .bucket!="pending") then "DONE:" + ([.[] | "\(.name)=\(.bucket)"] | join(","))
          else ([.[] | select(.bucket!="pending") | "\(.name)=\(.bucket)"] | join(",")) end
-       ')
+       ' 2>&1)
+       rc=$?
+       if [ $rc -ne 0 ]; then
+         if echo "$out" | grep -qi "no checks reported"; then
+           echo "NO_CHECKS: nothing to wait for"
+         else
+           echo "ERROR: $out"
+         fi
+         break
+       fi
        if [[ "$out" == FAILED:* || "$out" == DONE:* ]]; then
          echo "$out"
          break
@@ -42,7 +51,7 @@ argument-hint: "[<issue番号>]"
        sleep 20
      done
      ```
-     `FAILED:` で終了したら、実行ログを確認し、直してから再度プッシュして手順9をやり直す。
+     `FAILED:` で終了したら、実行ログを確認し、直してから再度プッシュして手順9をやり直す。`NO_CHECKS:` で終了したら、このリポジトリにCI設定が無いということなので、待たずに手順10へ進んでよい。`ERROR:` で終了したら、内容を確認し原因に応じて対処する。
    - **PowerShellのみの環境**: `gh pr checks <pr> --watch --fail-fast 2>&1 | Select-Object -Last 5; if ($LASTEXITCODE -ne 0) { throw "PR checks failed" }` （単一のフォアグラウンド呼び出しでブロックする。PowerShellはネイティブコマンドの終了コードをパイプ越しでも `$LASTEXITCODE` に保持するので、これで失敗を確実に検知できる）。
    - 特定のチェック（例 `test`）が一向に一覧に現れず、無関係なチェックだけが完了する場合、そのPRは `origin/main` と `mergeable: CONFLICTING` の可能性が高い——GitHubは競合しているPRに対してそのワークフローの起動を失敗ではなく黙ってスキップすることがある。`gh pr view <pr> --json mergeable` で確認し、該当すれば最新の `origin/main` にrebaseして解消し、force-pushして再度待つ。
 10. **Copilotレビューが有効か判定してから待つ** — Copilotの自動コードレビューはリポジトリ／PRごとの設定でON/OFFが切り替わるため、まず「そもそもレビューがリクエストされているか」を確認してから待つかどうかを決める。ポーリングを始める前に必ず1回、次を判定する（現HEADの `sha` を先に取得し、以降のポーリングでもこの `sha` を使い回す——古いcommitのレビューを新pushの完了と誤認しないため。新しいpush後は改めて `sha` を取り直す）:
