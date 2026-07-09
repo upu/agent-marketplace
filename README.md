@@ -7,7 +7,7 @@ upu の開発プロジェクト（[Totonoe-Log](https://github.com/upu/Totonoe-L
 
 | プラグイン | 説明 |
 | --- | --- |
-| [dev-flow](./plugins/dev-flow) | 開発フローを支援するスキル集（propose-improvements、plan-next、ship、batch-ship、release など） |
+| [dev-flow](./plugins/dev-flow) | 開発フローを支援するスキル集（propose-improvements、plan-next、ship、batch-ship、release、retro など） |
 
 今後、VSCode 拡張機能開発に特化した `vscode-ext-toolkit` プラグインの追加を予定しています。
 
@@ -36,7 +36,7 @@ Claude Code 上で以下を実行してください。
 `x.y.z をリリースして` のように入力し `release` スキルが起動できれば、
 マーケットプレイス経由での参照が正しく機能しています。現時点の `dev-flow` は、コードをレビューして改善案・新機能案をissue化する
 `propose-improvements` スキル、オープンなissueから次バージョンのスコープを決めてマイルストーンを作る `plan-next` スキル、
-既存のGitHub issueをPRのマージまで進める `ship` スキル、複数issueをサブエージェント委譲で一括実装する `batch-ship` スキル、バージョンリリース作業を支援する `release` スキルを含みます。
+既存のGitHub issueをPRのマージまで進める `ship` スキル、複数issueをサブエージェント委譲で一括実装する `batch-ship` スキル、バージョンリリース作業を支援する `release` スキル、リリース後のふりかえりを仕組みの改善に変える `retro` スキルを含みます。
 実運用スキルは今後も随時追加予定です。
 
 ## スキル開発
