@@ -39,6 +39,13 @@ Claude Code 上で以下を実行してください。
 既存のGitHub issueをPRのマージまで進める `ship` スキル、バージョンリリース作業を支援する `release` スキルを含みます。
 実運用スキルは今後も随時追加予定です。
 
+## スキル開発
+
+このリポジトリにスキル（`SKILL.md`）を追加・変更する際は、以下の執筆規約に従ってください。
+
+- **SKILL.md は本文・frontmatter の `description` とも日本語で書く。** オーナーが読みやすいようにするための方針です（2026-07-06 の明示依頼）。
+- **トリガー用の例文（`description` 内の `when use:` 以降など）は日本語を主にしつつ、英語の代表例も残してよい。** `when use:` のような英語のラベル自体や、英語での呼び出し例が `description` に含まれるのは、この方針の例外として許容されます。
+
 ## 参考ドキュメント
 
 - [Plugins reference](https://code.claude.com/docs/ja/plugins-reference)
