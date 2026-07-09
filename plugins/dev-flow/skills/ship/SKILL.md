@@ -33,7 +33,7 @@ argument-hint: "[<issue番号>]"
        ' 2>&1)
        rc=$?
        if [ $rc -ne 0 ]; then
-         if echo "$out" | grep -qi "no checks reported"; then
+         if [[ "${out,,}" == *"no checks reported"* ]]; then
            echo "NO_CHECKS: nothing to wait for"
            exit 0
          else
@@ -69,13 +69,12 @@ argument-hint: "[<issue番号>]"
       sha=$(git rev-parse HEAD)
       seen_pending=""
       while true; do
-        submitted_raw=$(gh pr view <pr> --json reviews --jq ".reviews[]? | select(.author.login==\"copilot-pull-request-reviewer\" and .commit.oid==\"$sha\") | .state" 2>&1)
+        submitted=$(gh pr view <pr> --json reviews --jq "[.reviews[]? | select(.author.login==\"copilot-pull-request-reviewer\" and .commit.oid==\"$sha\") | .state] | last // empty" 2>&1)
         if [ $? -ne 0 ]; then
-          echo "ERROR (retrying): $submitted_raw"
+          echo "ERROR (retrying): $submitted"
           sleep 25
           continue
         fi
-        submitted=$(echo "$submitted_raw" | head -1)
         if [ -n "$submitted" ]; then
           echo "SUBMITTED: $submitted"
           break
