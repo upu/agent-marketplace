@@ -33,10 +33,12 @@ argument-hint: "[<issue番号>]"
        ' 2>&1)
        rc=$?
        if [ $rc -ne 0 ]; then
-         if [[ "${out,,}" == *"no checks reported"* ]]; then
-           echo "NO_CHECKS: nothing to wait for"
-           exit 0
-         fi
+         case "$out" in
+           *"no checks reported"*)
+             echo "NO_CHECKS: nothing to wait for"
+             exit 0
+             ;;
+         esac
          echo "ERROR (retrying): $out"
          sleep 20
          continue
