@@ -57,12 +57,19 @@ function runGh(command, exec) {
  * returns one flat JSON array — unlike raw `gh api`, it needs no
  * --paginate/--slurp handling.
  */
+const ISSUE_LIMIT = 1000;
+
 function fetchOpenIssues(maxBodyChars, exec = execSync) {
   const raw = runGh(
-    "gh issue list --state open --limit 1000 --json number,title,labels,milestone,body",
+    `gh issue list --state open --limit ${ISSUE_LIMIT} --json number,title,labels,milestone,body`,
     exec
   );
   const issues = JSON.parse(raw);
+  if (issues.length >= ISSUE_LIMIT) {
+    console.error(
+      `::warning::Open issue count reached the --limit ${ISSUE_LIMIT} cap; the inventory may be missing older open issues.`
+    );
+  }
   return issues.map((issue) => {
     const { body, truncated } = truncateBody(issue.body, maxBodyChars);
     return {

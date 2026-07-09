@@ -80,6 +80,34 @@ test("fetchOpenIssues maps gh's JSON into the trimmed shape, truncating long bod
   ]);
 });
 
+test("fetchOpenIssues warns on stderr when the result hits the --limit cap", () => {
+  const oneIssue = JSON.stringify([
+    { number: 1, title: "t", labels: [], milestone: null, body: "b" },
+  ]);
+  const manyIssues = JSON.stringify(
+    Array.from({ length: 1000 }, (_, i) => ({
+      number: i + 1,
+      title: `t${i}`,
+      labels: [],
+      milestone: null,
+      body: "b",
+    }))
+  );
+
+  const originalErrorLog = console.error;
+  const warnings = [];
+  console.error = (msg) => warnings.push(msg);
+  try {
+    fetchOpenIssues(10, () => oneIssue);
+    assert.deepEqual(warnings, []);
+    fetchOpenIssues(10, () => manyIssues);
+  } finally {
+    console.error = originalErrorLog;
+  }
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /reached the --limit 1000 cap/);
+});
+
 test("fetchOpenIssues surfaces gh's stderr on failure", () => {
   const exec = () => {
     const err = new Error("Command failed");
