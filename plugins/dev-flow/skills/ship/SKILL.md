@@ -36,10 +36,10 @@ argument-hint: "[<issue番号>]"
          if [[ "${out,,}" == *"no checks reported"* ]]; then
            echo "NO_CHECKS: nothing to wait for"
            exit 0
-         else
-           echo "ERROR: $out"
-           exit 1
          fi
+         echo "ERROR (retrying): $out"
+         sleep 20
+         continue
        fi
        if [[ "$out" == FAILED:* ]]; then
          echo "$out"
@@ -56,7 +56,7 @@ argument-hint: "[<issue番号>]"
        sleep 20
      done
      ```
-     終了コードにも意味を持たせている（`0`=通過/CI無し、`1`=失敗/エラー）ので、Monitorが報告する終了コードだけでも判断できる。`FAILED:` で終了したら、実行ログを確認し、直してから再度プッシュして手順9をやり直す。`NO_CHECKS:` で終了したら、このリポジトリにCI設定が無いということなので、待たずに手順10へ進んでよい。`ERROR:` で終了したら、内容を確認し原因に応じて対処する。
+     終了コードにも意味を持たせている（`0`=通過/CI無し、`1`=チェック失敗）ので、Monitorが報告する終了コードだけでも判断できる。`gh pr checks` 自体が失敗した場合、「CI設定が無い」（`no checks reported`）なら待たずに `NO_CHECKS:` で終了するが、それ以外の一時的な失敗（認証切れ・レート制限等）は `ERROR (retrying):` を出力して再試行する（手順10のCopilotレビュー待ちスクリプトと同じ方針——1回の失敗で待ちを諦めない）。`FAILED:` で終了したら、実行ログを確認し、直してから再度プッシュして手順9をやり直す。`NO_CHECKS:` で終了したら、このリポジトリにCI設定が無いということなので、待たずに手順10へ進んでよい。
    - **PowerShellのみの環境**: `gh pr checks <pr> --watch --fail-fast 2>&1 | Select-Object -Last 5; if ($LASTEXITCODE -ne 0) { throw "PR checks failed" }` （単一のフォアグラウンド呼び出しでブロックする。PowerShellはネイティブコマンドの終了コードをパイプ越しでも `$LASTEXITCODE` に保持するので、これで失敗を確実に検知できる）。
    - 特定のチェック（例 `test`）が一向に一覧に現れず、無関係なチェックだけが完了する場合、そのPRは `origin/main` と `mergeable: CONFLICTING` の可能性が高い——GitHubは競合しているPRに対してそのワークフローの起動を失敗ではなく黙ってスキップすることがある。`gh pr view <pr> --json mergeable` で確認し、該当すれば最新の `origin/main` にrebaseして解消し、force-pushして再度待つ。
 10. **Copilotレビューが有効か判定してから待つ** — Copilotの自動コードレビューはリポジトリ／PRごとの設定でON/OFFが切り替わるため、まず「そもそもレビューがリクエストされているか」を確認してから待つかどうかを決める。ポーリングを始める前に必ず1回、次を判定する（現HEADの `sha` を先に取得し、以降のポーリングでもこの `sha` を使い回す——古いcommitのレビューを新pushの完了と誤認しないため。新しいpush後は改めて `sha` を取り直す）:
