@@ -35,14 +35,19 @@ argument-hint: "[<issue番号>]"
        if [ $rc -ne 0 ]; then
          if echo "$out" | grep -qi "no checks reported"; then
            echo "NO_CHECKS: nothing to wait for"
+           exit 0
          else
            echo "ERROR: $out"
+           exit 1
          fi
-         break
        fi
-       if [[ "$out" == FAILED:* || "$out" == DONE:* ]]; then
+       if [[ "$out" == FAILED:* ]]; then
          echo "$out"
-         break
+         exit 1
+       fi
+       if [[ "$out" == DONE:* ]]; then
+         echo "$out"
+         exit 0
        fi
        if [ -n "$out" ] && [ "$out" != "$prev" ]; then
          echo "$out"
@@ -51,7 +56,7 @@ argument-hint: "[<issue番号>]"
        sleep 20
      done
      ```
-     `FAILED:` で終了したら、実行ログを確認し、直してから再度プッシュして手順9をやり直す。`NO_CHECKS:` で終了したら、このリポジトリにCI設定が無いということなので、待たずに手順10へ進んでよい。`ERROR:` で終了したら、内容を確認し原因に応じて対処する。
+     終了コードにも意味を持たせている（`0`=通過/CI無し、`1`=失敗/エラー）ので、Monitorが報告する終了コードだけでも判断できる。`FAILED:` で終了したら、実行ログを確認し、直してから再度プッシュして手順9をやり直す。`NO_CHECKS:` で終了したら、このリポジトリにCI設定が無いということなので、待たずに手順10へ進んでよい。`ERROR:` で終了したら、内容を確認し原因に応じて対処する。
    - **PowerShellのみの環境**: `gh pr checks <pr> --watch --fail-fast 2>&1 | Select-Object -Last 5; if ($LASTEXITCODE -ne 0) { throw "PR checks failed" }` （単一のフォアグラウンド呼び出しでブロックする。PowerShellはネイティブコマンドの終了コードをパイプ越しでも `$LASTEXITCODE` に保持するので、これで失敗を確実に検知できる）。
    - 特定のチェック（例 `test`）が一向に一覧に現れず、無関係なチェックだけが完了する場合、そのPRは `origin/main` と `mergeable: CONFLICTING` の可能性が高い——GitHubは競合しているPRに対してそのワークフローの起動を失敗ではなく黙ってスキップすることがある。`gh pr view <pr> --json mergeable` で確認し、該当すれば最新の `origin/main` にrebaseして解消し、force-pushして再度待つ。
 10. **Copilotレビューが有効か判定してから待つ** — Copilotの自動コードレビューはリポジトリ／PRごとの設定でON/OFFが切り替わるため、まず「そもそもレビューがリクエストされているか」を確認してから待つかどうかを決める。ポーリングを始める前に必ず1回、次を判定する（現HEADの `sha` を先に取得し、以降のポーリングでもこの `sha` を使い回す——古いcommitのレビューを新pushの完了と誤認しないため。新しいpush後は改めて `sha` を取り直す）:
@@ -64,12 +69,24 @@ argument-hint: "[<issue番号>]"
       sha=$(git rev-parse HEAD)
       seen_pending=""
       while true; do
-        submitted=$(gh pr view <pr> --json reviews --jq ".reviews[]? | select(.author.login==\"copilot-pull-request-reviewer\" and .commit.oid==\"$sha\") | .state" | head -1)
+        submitted_raw=$(gh pr view <pr> --json reviews --jq ".reviews[]? | select(.author.login==\"copilot-pull-request-reviewer\" and .commit.oid==\"$sha\") | .state" 2>&1)
+        if [ $? -ne 0 ]; then
+          echo "ERROR (retrying): $submitted_raw"
+          sleep 25
+          continue
+        fi
+        submitted=$(echo "$submitted_raw" | head -1)
         if [ -n "$submitted" ]; then
           echo "SUBMITTED: $submitted"
           break
         fi
-        pending=$(gh pr view <pr> --json reviewRequests --jq '.reviewRequests[]? | (.login // .name // empty)' | grep -i copilot || true)
+        pending_raw=$(gh pr view <pr> --json reviewRequests --jq '.reviewRequests[]? | (.login // .name // empty)' 2>&1)
+        if [ $? -ne 0 ]; then
+          echo "ERROR (retrying): $pending_raw"
+          sleep 25
+          continue
+        fi
+        pending=$(echo "$pending_raw" | grep -i copilot || true)
         if [ -n "$pending" ] && [ -z "$seen_pending" ]; then
           echo "review requested, still awaiting submission"
           seen_pending=1
@@ -77,6 +94,7 @@ argument-hint: "[<issue番号>]"
         sleep 25
       done
       ```
+      `gh` の呼び出しがエラーになった場合（認証切れ・レート制限・一時的なAPI障害など）は `ERROR (retrying):` を出力してから待って再試行する——1回の失敗でループを諦めず、かつ無言のまま沈黙してタイムアウトすることも避ける。
       PowerShellのみの環境では従来通り単一のフォアグラウンド呼び出しで、20〜30秒間隔・合計10〜15分程度のuntil-loopとしてポーリングする（バックグラウンド発火や後のターンでの再開はしない）。**短時間（数回のポーリング）で両方空だったからといって「未設定」と判断しない** ——非同期の反映遅延で、レビューがマージ直前に着弾した実例がある。全期間を通して両方空のときのみ「この commit では Copilot レビュー適用なし」と結論しMergeへ進む。タイムアウトに達してもレビューが確認できない場合は、その旨をユーザーに伝えた上でマージに進んで良い（レビューは非同期でも後から届く）。
     - Copilotのレビューが手に入ったら（上記いずれの分岐でも）本文（`gh pr view <pr> --json reviews`）とインラインコメント（`gh api repos/:owner/:repo/pulls/<pr>/comments --jq '.[] | select(.user.login=="Copilot") | {path,line,body}'` — インラインコメントの `user.login` と、レビュー本体の `author.login`（`copilot-pull-request-reviewer`）は別フィールドである点に注意）を読み、次のいずれかを判断する:
       - 単なる提案・nit・スタイルの指摘のみ、またはスコープ外・誤検知 → 内容をユーザーに一言報告し、返信（コード変更なし）してマージへ進む（必要なら別issueとしてフォローアップを提案する）。
