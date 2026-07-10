@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-11
+
 ### Added
 
 - `dev-flow` プラグインの `plugin.json` に `version` フィールドを追加し、SemVer で管理を開始。
@@ -24,4 +26,5 @@
 - README に、スキル更新を取り込むための `/plugin marketplace update upu-agent-marketplace` の実行手順を明文化。
 - README のスキル執筆規約を拡張: SKILL.md 本文は「短い命令文＋構造化された分岐（箇条書き・表）」で書き、why・実測談は各スキルの `reference.md` に分離して本文から一行で誘導する方針を明文化。
 
-[Unreleased]: https://github.com/upu/agent-marketplace/compare/bd3a70fe000928f67ae7eb15caea25f8729211b0...HEAD
+[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.1.0

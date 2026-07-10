@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-11
+
 ### Added
 
 - Added a `version` field to the `dev-flow` plugin's `plugin.json` and started tracking it with SemVer.
@@ -24,4 +26,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented in the README how to pull in skill updates via `/plugin marketplace update upu-agent-marketplace`.
 - Extended the README's skill-writing conventions: SKILL.md bodies use short imperatives with structured branching (bullets/tables), and whys / field notes live in each skill's `reference.md`, referenced from the body by a single line.
 
-[Unreleased]: https://github.com/upu/agent-marketplace/compare/bd3a70fe000928f67ae7eb15caea25f8729211b0...HEAD
+[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.1.0
