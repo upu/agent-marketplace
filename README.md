@@ -39,6 +39,25 @@ Claude Code 上で以下を実行してください。
 既存のGitHub issueをPRのマージまで進める `ship` スキル、複数issueをサブエージェント委譲で一括実装する `batch-ship` スキル、バージョンリリース作業を支援する `release` スキル、リリース後のふりかえりを仕組みの改善に変える `retro` スキルを含みます。
 実運用スキルは今後も随時追加予定です。
 
+## 更新方法
+
+`/plugin marketplace add` でマーケットプレイスを追加すると、Claude Code はプラグインの内容をローカルにキャッシュします。
+このキャッシュは `main` の更新に自動追従しません。挙動が変わるスキル更新（バグ修正・新スキル追加など）を取り込むには、
+利用側のリポジトリで以下を実行してください。
+
+```
+/plugin marketplace update upu-agent-marketplace
+```
+
+更新後にスキルの挙動が反映されない場合は、続けて `/reload-plugins` を実行してください。
+
+各変更内容は [CHANGELOG.md](./CHANGELOG.md)（英語・正本）/ [CHANGELOG.ja.md](./CHANGELOG.ja.md)（日本語訳）で確認できます。
+`dev-flow` プラグインの `plugin.json` にも `version` フィールドがあり、SemVer で管理しています。
+
+なお、このリポジトリ自身のリリース作業（タグ付け・GitHub Release）はまだ自動化していません。
+配布している `release` スキルは `package.json` の存在を前提にしており、npm パッケージを持たないこのリポジトリには
+現状そのまま適用できないため、当面は `plugin.json` の `version` と CHANGELOG を手動で更新して管理します。
+
 ## スキル開発
 
 このリポジトリにスキル（`SKILL.md`）を追加・変更する際は、以下の執筆規約に従ってください。
