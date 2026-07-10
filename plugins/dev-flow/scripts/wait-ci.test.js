@@ -46,13 +46,20 @@ test("classifyChecks reports DONE when every check resolved successfully", () =>
   );
 });
 
-test("classifyChecks reports PENDING with only the resolved checks in the message", () => {
+test("classifyChecks reports PENDING with every check (including still-pending ones) in the message", () => {
   assert.deepEqual(
     classifyChecks([
       { name: "test", bucket: "pass" },
       { name: "lint", bucket: "pending" },
     ]),
-    { status: "PENDING", message: "test=pass" }
+    { status: "PENDING", message: "test=pass,lint=pending" }
+  );
+});
+
+test("classifyChecks never returns an empty PENDING message, even when every check is still pending", () => {
+  assert.deepEqual(
+    classifyChecks([{ name: "test", bucket: "pending" }]),
+    { status: "PENDING", message: "test=pending" }
   );
 });
 
@@ -116,7 +123,7 @@ test("waitForChecks polls through pending states, dedupes unchanged messages, th
   });
   assert.equal(code, 0);
   assert.equal(call, 3);
-  assert.deepEqual(logs, ["DONE:test=pass"]);
+  assert.deepEqual(logs, ["test=pending", "DONE:test=pass"]);
   assert.deepEqual(sleeps, [20000, 20000]);
 });
 

@@ -15,6 +15,7 @@
 //   [sha] defaults to `git rev-parse HEAD` when omitted.
 // Exit codes: 0 = a review was submitted for this sha, or Copilot review
 //                 was never requested for this PR (nothing to wait for)
+//             1 = invalid or missing arguments
 //             2 = timed out with no review submitted for this sha yet
 //                 (may still arrive later — the caller may proceed)
 "use strict";

@@ -7,7 +7,7 @@
 //
 // Usage: node wait-ci.js <pr> [--interval-ms=20000] [--timeout-ms=1200000]
 // Exit codes: 0 = all checks passed, or this PR has no checks configured
-//             1 = at least one check failed or was cancelled
+//             1 = at least one check failed or was cancelled, or invalid/missing arguments
 //             2 = timed out before checks resolved
 "use strict";
 
@@ -45,12 +45,13 @@ function classifyChecks(checks) {
   if (failed.length > 0) {
     return { status: "FAILED", message: failed.map((c) => c.name).join(",") };
   }
-  const resolved = checks.filter((c) => c.bucket !== "pending");
-  const message = resolved.map((c) => `${c.name}=${c.bucket}`).join(",");
-  if (resolved.length === checks.length) {
-    return { status: "DONE", message };
-  }
-  return { status: "PENDING", message };
+  // Every check's state goes into the message, including still-pending ones —
+  // otherwise a poll where nothing has resolved yet (e.g. right after the PR
+  // opens) reports an empty message, which waitForChecks then never logs,
+  // and the watcher goes silent until the first check resolves.
+  const message = checks.map((c) => `${c.name}=${c.bucket}`).join(",");
+  const allResolved = checks.every((c) => c.bucket !== "pending");
+  return { status: allResolved ? "DONE" : "PENDING", message };
 }
 
 /**
