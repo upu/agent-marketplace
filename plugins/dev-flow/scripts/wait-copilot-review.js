@@ -45,6 +45,15 @@ function parseArgs(argv) {
   if (positional.length < 1 || positional.length > 2) {
     throw new Error("Usage: wait-copilot-review.js <pr> [sha] [--interval-ms=N] [--timeout-ms=N]");
   }
+  // A malformed <pr>/[sha] makes every `gh` call fail the same way a
+  // transient API error would, so without this check a typo'd argument
+  // polls silently until the timeout instead of failing fast.
+  if (!/^\d+$/.test(positional[0])) {
+    throw new Error(`<pr> must be a number (got: ${positional[0]})`);
+  }
+  if (positional[1] && !/^[0-9a-f]{7,40}$/i.test(positional[1])) {
+    throw new Error(`[sha] must look like a git commit sha (got: ${positional[1]})`);
+  }
   args.pr = positional[0];
   args.sha = positional[1] || null;
   return args;

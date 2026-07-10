@@ -21,6 +21,11 @@ test("parseArgs requires exactly one positional argument", () => {
   assert.throws(() => parseArgs(["1", "2"]), /Usage:/);
 });
 
+test("parseArgs rejects a non-numeric pr instead of letting it retry until timeout", () => {
+  assert.throws(() => parseArgs(["abc"]), /<pr> must be a number/);
+  assert.throws(() => parseArgs(["-5"]), /<pr> must be a number/);
+});
+
 test("parseArgs rejects unknown flags", () => {
   assert.throws(() => parseArgs(["42", "--nope"]), /Unknown argument/);
 });

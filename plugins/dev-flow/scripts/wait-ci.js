@@ -35,6 +35,12 @@ function parseArgs(argv) {
   if (positional.length !== 1) {
     throw new Error("Usage: wait-ci.js <pr> [--interval-ms=N] [--timeout-ms=N]");
   }
+  // A non-numeric <pr> makes every `gh pr checks` call fail the same way a
+  // transient API error would, so without this check a typo'd PR number
+  // polls silently until the timeout instead of failing fast.
+  if (!/^\d+$/.test(positional[0])) {
+    throw new Error(`<pr> must be a number (got: ${positional[0]})`);
+  }
   args.pr = positional[0];
   return args;
 }

@@ -15,12 +15,22 @@ test("parseArgs defaults with only a PR number", () => {
 });
 
 test("parseArgs accepts an optional sha and overrides", () => {
-  assert.deepEqual(parseArgs(["42", "abc123", "--interval-ms=5000", "--timeout-ms=60000"]), {
+  assert.deepEqual(parseArgs(["42", "abc1234", "--interval-ms=5000", "--timeout-ms=60000"]), {
     pr: "42",
-    sha: "abc123",
+    sha: "abc1234",
     intervalMs: 5000,
     timeoutMs: 60000,
   });
+});
+
+test("parseArgs rejects a non-numeric pr instead of letting it retry until timeout", () => {
+  assert.throws(() => parseArgs(["abc"]), /<pr> must be a number/);
+  assert.throws(() => parseArgs(["-5"]), /<pr> must be a number/);
+});
+
+test("parseArgs rejects a sha that doesn't look like a git commit oid", () => {
+  assert.throws(() => parseArgs(["42", "not-a-sha!"]), /\[sha\] must look like a git commit sha/);
+  assert.throws(() => parseArgs(["42", "abc12"]), /\[sha\] must look like a git commit sha/);
 });
 
 test("parseArgs requires 1 or 2 positional arguments", () => {
