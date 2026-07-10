@@ -41,7 +41,7 @@ Claude Code 上で以下を実行してください。
 
 ## 更新方法
 
-`/plugin marketplace add` でマーケットプレイスを追加すると、Claude Code はプラグインの内容をローカルにキャッシュします。
+`/plugin marketplace add upu/agent-marketplace` でマーケットプレイスを追加すると、Claude Code はプラグインの内容をローカルにキャッシュします。
 このキャッシュは `main` の更新に自動追従しません。挙動が変わるスキル更新（バグ修正・新スキル追加など）を取り込むには、
 利用側のリポジトリで以下を実行してください。
 
