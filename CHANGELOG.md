@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a `version` field to the `dev-flow` plugin's `plugin.json` and started tracking it with SemVer.
 - Added `CHANGELOG.md` / `CHANGELOG.ja.md` in Keep a Changelog format so consumers can follow behavior changes to the skills.
 
+### Changed
+
+- `ship` now waits for CI checks, and `ship`/`release` now wait for Copilot reviews, by launching bundled Node scripts (`wait-ci.js`, `wait-copilot-review.js`) instead of having the model reproduce long inline bash/jq loops, removing a recurring source of quoting mistakes. (`release`'s own CI wait still uses `gh pr checks --watch`.)
+
 ### Docs
 
 - Documented in the README how to pull in skill updates via `/plugin marketplace update upu-agent-marketplace`.

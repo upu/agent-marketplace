@@ -21,83 +21,23 @@ argument-hint: "[<issue番号>]"
 6. **テスト（ゲート）** — このリポジトリのCI設定（例 `.github/workflows/*.yml` のtest/buildジョブ）を確認し、そこで実行されているコマンド列をローカルでも同じ順序で実行する（典型的には lint → compile/build → test → パッケージング検証、だがリポジトリごとに異なるので必ずCI定義を確認して合わせる。二重ビルドを避けるため、複数のステップが同じ成果物に依存するなら共有できる箇所は1回にまとめる）。全て通ること。手順3で書いたテストが今はgreenであることを確認する。redなら直す——ビルドやテストが失敗した状態でPRを開かない。
 7. **コミットする** — `git status` / `git diff` で意図した変更だけがステージされていることを確認し、リポジトリの直近のコミット履歴のスタイル（言語・書式）に合わせて、末尾に `Closes #$ARGUMENTS` を付けてコミットする。
 8. **プッシュ & PR** — `git push -u origin <branch>` の後、`gh pr create --base main` でPRを作成する。`.github/pull_request_template.md` が存在すればその構成に沿って本文を書き、無ければ変更内容の要約でよい。いずれも末尾に `Closes #$ARGUMENTS` を付ける。テストが通ったこと、CHANGELOGを追記した（またはN/Aである）ことを本文に反映する。
-9. **CIを待つ** — Bashツールが使える環境ではMonitorツールで背景監視し、完了通知を待つ（Monitorは状態変化・完了時に自動でこちらへ通知が届く設計のため、フォアグラウンドでブロックしなくても「発火し忘れる」「後のターンで継ぎ足すのを忘れる」といった事故は起きない）。PowerShellのみの環境ではMonitorが使えないため、従来通り単一のフォアグラウンド呼び出しでブロックする。
-   - **Bashツールが使える環境**: 次のスクリプトをMonitorツールに渡す（`timeout_ms` は長めに、例 1200000 = 20分。`persistent` はfalseでよい）。外部の `jq` コマンドには依存せず、`gh` に内蔵された `--jq` のみを使う（開発機に `jq` 本体が入っているとは限らないため）。チェックが確定するたびに1行emitし、いずれかが失敗すれば即座に、全て完了すれば結果を出して終了する（沈黙のまま止まらないよう、成功・失敗どちらの終端状態も拾う）。**このリポジトリにCI設定が無い（PRに紐づくチェックが1件も無い）場合、`gh pr checks` はJSONを返さず非ゼロ終了し `no checks reported on the '<branch>' branch` をstderrに出す**（実PRで確認済み）——このケースを空配列として扱おうとすると `--jq` 自体が実行されず意図通りに動かないため、エラー出力を明示的に検知して待たずに抜ける。
-     ```
-     prev=""
-     while true; do
-       out=$(gh pr checks <pr> --json name,bucket --jq '
-         if any(.[]; .bucket=="fail" or .bucket=="cancel") then "FAILED:" + ([.[] | select(.bucket=="fail" or .bucket=="cancel") | .name] | join(","))
-         elif all(.[]; .bucket!="pending") then "DONE:" + ([.[] | "\(.name)=\(.bucket)"] | join(","))
-         else ([.[] | select(.bucket!="pending") | "\(.name)=\(.bucket)"] | join(",")) end
-       ' 2>&1)
-       rc=$?
-       if [ $rc -ne 0 ]; then
-         case "$out" in
-           *"no checks reported"*)
-             echo "NO_CHECKS: nothing to wait for"
-             exit 0
-             ;;
-         esac
-         echo "ERROR (retrying): $out"
-         sleep 20
-         continue
-       fi
-       if [[ "$out" == FAILED:* ]]; then
-         echo "$out"
-         exit 1
-       fi
-       if [[ "$out" == DONE:* ]]; then
-         echo "$out"
-         exit 0
-       fi
-       if [ -n "$out" ] && [ "$out" != "$prev" ]; then
-         echo "$out"
-         prev="$out"
-       fi
-       sleep 20
-     done
-     ```
-     終了コードにも意味を持たせている（`0`=通過/CI無し、`1`=チェック失敗）ので、Monitorが報告する終了コードだけでも判断できる。`gh pr checks` 自体が失敗した場合、「CI設定が無い」（`no checks reported`）なら待たずに `NO_CHECKS:` で終了するが、それ以外の一時的な失敗（認証切れ・レート制限等）は `ERROR (retrying):` を出力して再試行する（手順10のCopilotレビュー待ちスクリプトと同じ方針——1回の失敗で待ちを諦めない）。`FAILED:` で終了したら、実行ログを確認し、直してから再度プッシュして手順9をやり直す。`NO_CHECKS:` で終了したら、このリポジトリにCI設定が無いということなので、待たずに手順10へ進んでよい。
-   - **PowerShellのみの環境**: `gh pr checks <pr> --watch --fail-fast 2>&1 | Select-Object -Last 5; if ($LASTEXITCODE -ne 0) { throw "PR checks failed" }` （単一のフォアグラウンド呼び出しでブロックする。PowerShellはネイティブコマンドの終了コードをパイプ越しでも `$LASTEXITCODE` に保持するので、これで失敗を確実に検知できる）。
+9. **CIを待つ** — 同梱の `wait-ci.js` を起動する: `node "${CLAUDE_PLUGIN_ROOT}/scripts/wait-ci.js" <pr>`（`<pr>` は手順8で作成したPR番号。間隔・タイムアウトは `--interval-ms=` `--timeout-ms=` で調整可、デフォルトは20秒間隔・20分タイムアウト）。`gh pr checks` を内部でポーリングし、状態が変化するたびに1行標準出力する（沈黙のまま止まらない）。**外部の `jq` には依存せず**（開発機に `jq` 本体が入っているとは限らないため）、`gh` の生JSON出力をNode側でパースする。終了コードで結果を判定する:
+   - `0` — 全チェック通過、または `NO_CHECKS:`（このリポジトリにCI設定が無い。push直後にワークフローがまだ登録されていないだけの見せかけの無設定と誤認しないよう、2回連続で「no checks」を確認してから結論する）。待たずに手順10へ進んでよい。
+   - `1` — `FAILED:`（いずれかのチェックが失敗）、引数エラー、または `gh` 不在。前2者は実行ログを確認し、直してから再度プッシュして手順9をやり直す。
+   - `2` — `TIMEOUT:`（タイムアウトまでに解決しなかった）。状況を確認し、必要なら `--timeout-ms=` を延ばして再実行するか、ユーザーに報告する。
+   - Bashツールが使える環境ではこのコマンドをMonitorツールに渡して背景監視してよい（`timeout_ms` はスクリプトの `--timeout-ms` より少し長めに設定する。`persistent` はfalseでよい）。PowerShellのみの環境では単一のフォアグラウンド呼び出しでブロックする。
    - 特定のチェック（例 `test`）が一向に一覧に現れず、無関係なチェックだけが完了する場合、そのPRは `origin/main` と `mergeable: CONFLICTING` の可能性が高い——GitHubは競合しているPRに対してそのワークフローの起動を失敗ではなく黙ってスキップすることがある。`gh pr view <pr> --json mergeable` で確認し、該当すれば最新の `origin/main` にrebaseして解消し、force-pushして再度待つ。
-10. **Copilotレビューが有効か判定してから待つ** — Copilotの自動コードレビューはリポジトリ／PRごとの設定でON/OFFが切り替わるため、まず「そもそもレビューがリクエストされているか」を確認してから待つかどうかを決める。ポーリングを始める前に必ず1回、次を判定する（現HEADの `sha` を先に取得し、以降のポーリングでもこの `sha` を使い回す——古いcommitのレビューを新pushの完了と誤認しないため。新しいpush後は改めて `sha` を取り直す）:
-    - `gh pr view <pr> --json reviewRequests,reviews` で、`reviewRequests` に `Copilot`（レビュー依頼中。`login` または `name` が `Copilot` ないし `copilot-pull-request-reviewer`）があるか、`reviews` に `author.login == "copilot-pull-request-reviewer"` かつ `commit.oid == <sha>` のレビューが既にあるか（`done`）を見る。**`gh pr view` の `--jq` は `jq` 式1つのみ受け付け、`jq` 本体のような `--arg` での変数注入をサポートしないため `gh pr view --jq --arg ...` は必ず失敗する** ——開発機に外部の `jq` 本体が入っているとは限らないので、生JSONを別プロセスの `jq` にパイプするのではなく、`sha` の値をシェル変数展開でjq式の文字列リテラルに直接埋め込む（`sha` は `git rev-parse HEAD` の16進文字列でシェルメタ文字を含まないため埋め込んでも安全）。例: `gh pr view <pr> --json reviews --jq ".reviews[]? | select(.author.login==\"copilot-pull-request-reviewer\" and .commit.oid==\"$sha\") | .state"`。
-    - 両方とも無い場合のみ、念のため `gh api repos/:owner/:repo/issues/<pr>/timeline --paginate` で `event == "review_requested"` かつレビュワーがCopilot関連のイベントが過去に無いかも確認する（このPRでCopilotレビューが一度も設定されていないことの追加根拠にする）。
-    - **`pending` も `done` も `timeline` の根拠も全て無い** → このPRではCopilotレビューが要求されていない（自動レビュー設定がOFF、またはCopilotがreviewerから外されている）。待たずにこのステップを省略し、その旨を報告に含める。
-    - **`done` が既にある（`pending` は無い）** → レビューは完了済み。待たずにそのまま次のレビュー内容判断に進む。
-    - **`pending` がある（レビュー中）** → Bashツールが使える環境ではMonitorツールで背景監視する（`timeout_ms` は10〜15分、例 900000）。状態が変化した時だけ1行emitし、レビューが着弾したら終了する:
-      ```
-      sha=$(git rev-parse HEAD)
-      seen_pending=""
-      while true; do
-        submitted=$(gh pr view <pr> --json reviews --jq "[.reviews[]? | select(.author.login==\"copilot-pull-request-reviewer\" and .commit.oid==\"$sha\") | .state] | last // empty" 2>&1)
-        if [ $? -ne 0 ]; then
-          echo "ERROR (retrying): $submitted"
-          sleep 25
-          continue
-        fi
-        if [ -n "$submitted" ]; then
-          echo "SUBMITTED: $submitted"
-          break
-        fi
-        pending_raw=$(gh pr view <pr> --json reviewRequests --jq '.reviewRequests[]? | (.login // .name // empty)' 2>&1)
-        if [ $? -ne 0 ]; then
-          echo "ERROR (retrying): $pending_raw"
-          sleep 25
-          continue
-        fi
-        pending=$(echo "$pending_raw" | grep -i copilot || true)
-        if [ -n "$pending" ] && [ -z "$seen_pending" ]; then
-          echo "review requested, still awaiting submission"
-          seen_pending=1
-        fi
-        sleep 25
-      done
-      ```
-      `gh` の呼び出しがエラーになった場合（認証切れ・レート制限・一時的なAPI障害など）は `ERROR (retrying):` を出力してから待って再試行する——1回の失敗でループを諦めず、かつ無言のまま沈黙してタイムアウトすることも避ける。
-      PowerShellのみの環境では従来通り単一のフォアグラウンド呼び出しで、20〜30秒間隔・合計10〜15分程度のuntil-loopとしてポーリングする（バックグラウンド発火や後のターンでの再開はしない）。**短時間（数回のポーリング）で両方空だったからといって「未設定」と判断しない** ——非同期の反映遅延で、レビューがマージ直前に着弾した実例がある。全期間を通して両方空のときのみ「この commit では Copilot レビュー適用なし」と結論しMergeへ進む。タイムアウトに達してもレビューが確認できない場合は、その旨をユーザーに伝えた上でマージに進んで良い（レビューは非同期でも後から届く）。
-    - Copilotのレビューが手に入ったら（上記いずれの分岐でも）本文（`gh pr view <pr> --json reviews`）とインラインコメント（`gh api repos/:owner/:repo/pulls/<pr>/comments --jq '.[] | select(.user.login=="Copilot") | {path,line,body}'` — インラインコメントの `user.login` と、レビュー本体の `author.login`（`copilot-pull-request-reviewer`）は別フィールドである点に注意）を読み、次のいずれかを判断する:
+10. **Copilotレビューを待つ** — 同梱の `wait-copilot-review.js` を起動する: `node "${CLAUDE_PLUGIN_ROOT}/scripts/wait-copilot-review.js" <pr>`（sha省略時は現HEADの `git rev-parse HEAD` を自動使用するので、新しいpush後は明示的に新しいshaを渡すか、push後に改めて実行すれば自動で新HEADを見る。間隔・タイムアウトは `--interval-ms=` `--timeout-ms=` で調整可、デフォルトは25秒間隔・15分タイムアウト）。内部では次を1コマンドにまとめて行う（Copilotの自動コードレビューはリポジトリ／PRごとの設定でON/OFFが切り替わるため）:
+    - 指定shaに対する提出済みレビュー（`author.login == "copilot-pull-request-reviewer"` かつ `commit.oid == <sha>`）が既にあるか確認する。
+    - 無ければ `reviewRequests`（`Copilot` 名義のpending）をポーリングする。
+    - pendingも一度も見えないまま最初のポーリングが成功で返った場合のみ、PRのtimelineで過去に一度もCopilotへのレビュー依頼が無かったかを追加確認し、無ければ待たずに終了する（**短時間で空だからといって即「未設定」と判断しない**——非同期の反映遅延で、レビューがマージ直前に着弾した実例があるため、pendingが一度でも見えたらタイムアウトまで待つ）。
+    - `gh pr view`/`gh api` の呼び出しがエラーになった場合（認証切れ・レート制限・一時的なAPI障害など）は1回の失敗で諦めず `ERROR (retrying):` を出力して再試行する。
+   終了コードで結果を判定する:
+   - `0` — `SUBMITTED:<state>`（レビュー提出済み。内容判断へ進む）、または `NOT_CONFIGURED:`（このPRではCopilotレビューが要求されていない。待たずに次へ進んでよい）。
+   - `1` — 引数エラー（`<pr>` が数値でない、`[sha]` がgit oidの形でない等）、または `gh`/`git` 不在などのローカル前提条件エラー。原因を直して再実行する。
+   - `2` — `TIMEOUT:`（タイムアウトまでに提出されなかった）。レビューは非同期でも後から届くことがあるため、その旨をユーザーに伝えた上でマージに進んでよい。
+   - Bashツールが使える環境ではMonitorツールに渡して背景監視してよい（`timeout_ms` はスクリプトの `--timeout-ms` より少し長めに設定する）。PowerShellのみの環境では単一のフォアグラウンド呼び出しでブロックする。
+    - `SUBMITTED:` で終了したら、本文（`gh pr view <pr> --json reviews`）とインラインコメント（`gh api repos/:owner/:repo/pulls/<pr>/comments --jq '.[] | select(.user.login=="Copilot") | {path,line,body}'` — インラインコメントの `user.login` と、レビュー本体の `author.login`（`copilot-pull-request-reviewer`）は別フィールドである点に注意）を読み、次のいずれかを判断する:
       - 単なる提案・nit・スタイルの指摘のみ、またはスコープ外・誤検知 → 内容をユーザーに一言報告し、返信（コード変更なし）してマージへ進む（必要なら別issueとしてフォローアップを提案する）。
       - 実際のバグ・見落とし・スコープ内の問題を指摘している → 追加コミットで修正し、手順6（テストのゲート）をやり直し、`git push` して手順9（CI待ち）からやり直す。
         - 修正する際は、指摘を「その行だけの修正依頼」ではなく「このクラスの問題がdiffに存在するという信号」として扱う——push前に同種の観点でdiff全体を掃き、見つけた同類も直して1回のfixup pushに束ねる。fixup pushごとに再レビューが走り新しい指摘が1件ずつ出る数珠つなぎの往復（実測でPRあたり3ラウンド）を避けるため。
