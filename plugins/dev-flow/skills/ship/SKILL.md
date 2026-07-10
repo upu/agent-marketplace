@@ -34,6 +34,7 @@ argument-hint: "[<issue番号>]"
     - `gh pr view`/`gh api` の呼び出しがエラーになった場合（認証切れ・レート制限・一時的なAPI障害など）は1回の失敗で諦めず `ERROR (retrying):` を出力して再試行する。
    終了コードで結果を判定する:
    - `0` — `SUBMITTED:<state>`（レビュー提出済み。内容判断へ進む）、または `NOT_CONFIGURED:`（このPRではCopilotレビューが要求されていない。待たずに次へ進んでよい）。
+   - `1` — 引数エラー（`<pr>` が数値でない、`[sha]` がgit oidの形でない等）。コマンドの組み立てを直して再実行する。
    - `2` — `TIMEOUT:`（タイムアウトまでに提出されなかった）。レビューは非同期でも後から届くことがあるため、その旨をユーザーに伝えた上でマージに進んでよい。
    - Bashツールが使える環境ではMonitorツールに渡して背景監視してよい（`timeout_ms` はスクリプトの `--timeout-ms` より少し長めに設定する）。PowerShellのみの環境では単一のフォアグラウンド呼び出しでブロックする。
     - `SUBMITTED:` で終了したら、本文（`gh pr view <pr> --json reviews`）とインラインコメント（`gh api repos/:owner/:repo/pulls/<pr>/comments --jq '.[] | select(.user.login=="Copilot") | {path,line,body}'` — インラインコメントの `user.login` と、レビュー本体の `author.login`（`copilot-pull-request-reviewer`）は別フィールドである点に注意）を読み、次のいずれかを判断する:

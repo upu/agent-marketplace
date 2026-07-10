@@ -124,11 +124,15 @@ function waitForChecks(pr, { intervalMs, timeoutMs, exec, sleepFn, now = Date.no
       }
       log(`ERROR (retrying): ${err.message}`);
     }
-    if (now() >= deadline) {
+    const remainingMs = deadline - now();
+    if (remainingMs <= 0) {
       log("TIMEOUT: checks did not resolve within the timeout");
       return 2;
     }
-    sleepFn(intervalMs);
+    // Cap the sleep to what's left before the deadline, so a poll that
+    // finds nothing new right before the deadline doesn't push the actual
+    // wait past --timeout-ms by up to a full intervalMs.
+    sleepFn(Math.min(intervalMs, remainingMs));
   }
 }
 

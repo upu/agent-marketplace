@@ -139,6 +139,28 @@ test("waitForCopilotReview does not conclude NOT_CONFIGURED while a request is p
   assert.equal(logs[logs.length - 1], "TIMEOUT: no Copilot review submitted within the timeout");
 });
 
+test("waitForCopilotReview caps the final sleep to the time remaining, instead of overshooting --timeout-ms by up to intervalMs", () => {
+  let time = 0;
+  const sleeps = [];
+  waitForCopilotReview("42", "sha1", {
+    intervalMs: 100,
+    timeoutMs: 250,
+    fetchReviews: () => [],
+    fetchReviewRequests: () => [{ login: "Copilot" }],
+    fetchEverRequested: () => {
+      throw new Error("should not be called once a pending request is seen");
+    },
+    sleepFn: (ms) => {
+      sleeps.push(ms);
+      time += ms;
+    },
+    now: () => time,
+    log: () => {},
+  });
+  assert.deepEqual(sleeps, [100, 100, 50]);
+  assert.equal(time, 250);
+});
+
 test("waitForCopilotReview polls past a pending request until the review is submitted", () => {
   const requestSequence = [[{ login: "Copilot" }], [{ login: "Copilot" }], []];
   const reviewSequence = [

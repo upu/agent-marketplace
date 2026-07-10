@@ -172,3 +172,22 @@ test("waitForChecks returns 2 once the timeout elapses without resolving", () =>
   assert.equal(code, 2);
   assert.equal(logs[logs.length - 1], "TIMEOUT: checks did not resolve within the timeout");
 });
+
+test("waitForChecks caps the final sleep to the time remaining, instead of overshooting --timeout-ms by up to intervalMs", () => {
+  const exec = () => JSON.stringify([{ name: "test", bucket: "pending" }]);
+  let time = 0;
+  const sleeps = [];
+  waitForChecks("42", {
+    intervalMs: 100,
+    timeoutMs: 250,
+    exec,
+    sleepFn: (ms) => {
+      sleeps.push(ms);
+      time += ms;
+    },
+    now: () => time,
+    log: () => {},
+  });
+  assert.deepEqual(sleeps, [100, 100, 50]);
+  assert.equal(time, 250);
+});

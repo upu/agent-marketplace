@@ -185,11 +185,15 @@ function waitForCopilotReview(
       }
     }
 
-    if (now() >= deadline) {
+    const remainingMs = deadline - now();
+    if (remainingMs <= 0) {
       log("TIMEOUT: no Copilot review submitted within the timeout");
       return 2;
     }
-    sleepFn(intervalMs);
+    // Cap the sleep to what's left before the deadline, so a poll that
+    // finds nothing new right before the deadline doesn't push the actual
+    // wait past --timeout-ms by up to a full intervalMs.
+    sleepFn(Math.min(intervalMs, remainingMs));
   }
 }
 
@@ -201,7 +205,16 @@ function main() {
     console.error(`::error::${err.message}`);
     process.exit(1);
   }
-  const sha = args.sha || execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  let sha = args.sha;
+  if (!sha) {
+    try {
+      sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    } catch (err) {
+      const detail = err.stderr ? err.stderr.toString().trim() : err.message;
+      console.error(`::error::Could not resolve the current commit via \`git rev-parse HEAD\`: ${detail}`);
+      process.exit(1);
+    }
+  }
   const exitCode = waitForCopilotReview(args.pr, sha, {
     intervalMs: args.intervalMs,
     timeoutMs: args.timeoutMs,
