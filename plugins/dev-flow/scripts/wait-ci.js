@@ -7,7 +7,8 @@
 //
 // Usage: node wait-ci.js <pr> [--interval-ms=20000] [--timeout-ms=1200000]
 // Exit codes: 0 = all checks passed, or this PR has no checks configured
-//             1 = at least one check failed or was cancelled, or invalid/missing arguments
+//             1 = at least one check failed or was cancelled, invalid/missing
+//                 arguments, or `gh` is not available
 //             2 = timed out before checks resolved
 "use strict";
 
@@ -142,6 +143,16 @@ function main() {
     args = parseArgs(process.argv.slice(2));
   } catch (err) {
     console.error(`::error::${err.message}`);
+    process.exit(1);
+  }
+  // Without this, a missing `gh` binary looks identical to a transient API
+  // error to fetchChecksOnce, so the script would retry silently until
+  // --timeout-ms and exit 2 (TIMEOUT) — misleading for a problem that will
+  // never resolve itself.
+  try {
+    runGh(["--version"], execFileSync);
+  } catch (err) {
+    console.error(`::error::\`gh\` is not available: ${err.message}`);
     process.exit(1);
   }
   const exitCode = waitForChecks(args.pr, {

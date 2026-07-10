@@ -23,7 +23,7 @@ argument-hint: "[<issue番号>]"
 8. **プッシュ & PR** — `git push -u origin <branch>` の後、`gh pr create --base main` でPRを作成する。`.github/pull_request_template.md` が存在すればその構成に沿って本文を書き、無ければ変更内容の要約でよい。いずれも末尾に `Closes #$ARGUMENTS` を付ける。テストが通ったこと、CHANGELOGを追記した（またはN/Aである）ことを本文に反映する。
 9. **CIを待つ** — 同梱の `wait-ci.js` を起動する: `node "${CLAUDE_PLUGIN_ROOT}/scripts/wait-ci.js" <pr>`（`<pr>` は手順8で作成したPR番号。間隔・タイムアウトは `--interval-ms=` `--timeout-ms=` で調整可、デフォルトは20秒間隔・20分タイムアウト）。`gh pr checks` を内部でポーリングし、状態が変化するたびに1行標準出力する（沈黙のまま止まらない）。**外部の `jq` には依存せず**（開発機に `jq` 本体が入っているとは限らないため）、`gh` の生JSON出力をNode側でパースする。終了コードで結果を判定する:
    - `0` — 全チェック通過、または `NO_CHECKS:`（このリポジトリにCI設定が無い）。待たずに手順10へ進んでよい。
-   - `1` — `FAILED:`（いずれかのチェックが失敗）。実行ログを確認し、直してから再度プッシュして手順9をやり直す。
+   - `1` — `FAILED:`（いずれかのチェックが失敗）、引数エラー、または `gh` 不在。前2者は実行ログを確認し、直してから再度プッシュして手順9をやり直す。
    - `2` — `TIMEOUT:`（タイムアウトまでに解決しなかった）。状況を確認し、必要なら `--timeout-ms=` を延ばして再実行するか、ユーザーに報告する。
    - Bashツールが使える環境ではこのコマンドをMonitorツールに渡して背景監視してよい（`timeout_ms` はスクリプトの `--timeout-ms` より少し長めに設定する。`persistent` はfalseでよい）。PowerShellのみの環境では単一のフォアグラウンド呼び出しでブロックする。
    - 特定のチェック（例 `test`）が一向に一覧に現れず、無関係なチェックだけが完了する場合、そのPRは `origin/main` と `mergeable: CONFLICTING` の可能性が高い——GitHubは競合しているPRに対してそのワークフローの起動を失敗ではなく黙ってスキップすることがある。`gh pr view <pr> --json mergeable` で確認し、該当すれば最新の `origin/main` にrebaseして解消し、force-pushして再度待つ。
@@ -34,7 +34,7 @@ argument-hint: "[<issue番号>]"
     - `gh pr view`/`gh api` の呼び出しがエラーになった場合（認証切れ・レート制限・一時的なAPI障害など）は1回の失敗で諦めず `ERROR (retrying):` を出力して再試行する。
    終了コードで結果を判定する:
    - `0` — `SUBMITTED:<state>`（レビュー提出済み。内容判断へ進む）、または `NOT_CONFIGURED:`（このPRではCopilotレビューが要求されていない。待たずに次へ進んでよい）。
-   - `1` — 引数エラー（`<pr>` が数値でない、`[sha]` がgit oidの形でない等）。コマンドの組み立てを直して再実行する。
+   - `1` — 引数エラー（`<pr>` が数値でない、`[sha]` がgit oidの形でない等）、または `gh`/`git` 不在などのローカル前提条件エラー。原因を直して再実行する。
    - `2` — `TIMEOUT:`（タイムアウトまでに提出されなかった）。レビューは非同期でも後から届くことがあるため、その旨をユーザーに伝えた上でマージに進んでよい。
    - Bashツールが使える環境ではMonitorツールに渡して背景監視してよい（`timeout_ms` はスクリプトの `--timeout-ms` より少し長めに設定する）。PowerShellのみの環境では単一のフォアグラウンド呼び出しでブロックする。
     - `SUBMITTED:` で終了したら、本文（`gh pr view <pr> --json reviews`）とインラインコメント（`gh api repos/:owner/:repo/pulls/<pr>/comments --jq '.[] | select(.user.login=="Copilot") | {path,line,body}'` — インラインコメントの `user.login` と、レビュー本体の `author.login`（`copilot-pull-request-reviewer`）は別フィールドである点に注意）を読み、次のいずれかを判断する:

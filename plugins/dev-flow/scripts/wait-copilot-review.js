@@ -15,7 +15,8 @@
 //   [sha] defaults to `git rev-parse HEAD` when omitted.
 // Exit codes: 0 = a review was submitted for this sha, or Copilot review
 //                 was never requested for this PR (nothing to wait for)
-//             1 = invalid or missing arguments
+//             1 = invalid/missing arguments, or a local preflight failure
+//                 (e.g. `gh` unavailable, `git rev-parse HEAD` failed)
 //             2 = timed out with no review submitted for this sha yet
 //                 (may still arrive later — the caller may proceed)
 "use strict";
@@ -203,6 +204,16 @@ function main() {
     args = parseArgs(process.argv.slice(2));
   } catch (err) {
     console.error(`::error::${err.message}`);
+    process.exit(1);
+  }
+  // Without this, a missing `gh` binary looks identical to a transient API
+  // error to fetchReviews/fetchReviewRequests, so the script would retry
+  // silently until --timeout-ms and exit 2 (TIMEOUT) — misleading for a
+  // problem that will never resolve itself.
+  try {
+    runGh(["--version"], execFileSync);
+  } catch (err) {
+    console.error(`::error::\`gh\` is not available: ${err.message}`);
     process.exit(1);
   }
   let sha = args.sha;
