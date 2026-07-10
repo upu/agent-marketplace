@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ship` now waits for CI checks, and `ship`/`release` now wait for Copilot reviews, by launching bundled Node scripts (`wait-ci.js`, `wait-copilot-review.js`) instead of having the model reproduce long inline bash/jq loops, removing a recurring source of quoting mistakes. (`release`'s own CI wait still uses `gh pr checks --watch`.)
 - Rewrote the `ship` skill body into short imperative steps with explicit condition→action branching (bullet lists and exit-code tables), moving rationale and field notes to a `reference.md` read only on demand — shrinking the context loaded on every invocation (22,204 chars when filed → 5,936) without dropping any behavioral rule.
 - Applied the same rewrite to the remaining five skills — `release`, `plan-next`, `retro`, `batch-ship`, `propose-improvements`: bodies compressed to rule-centric imperatives with explicit branching, and rationale / field notes moved to each skill's `reference.md` (release 8,094 → 5,917 chars, plan-next 5,252 → 4,417, retro 4,724 → 4,166, batch-ship 3,811 → 2,941, propose-improvements 2,460 → 2,220).
+- Shortened all six skills' frontmatter `description` to a one-line purpose plus the `when use` trigger examples, halving the skill-list context loaded into every session (1,112 → 554 chars in total).
 
 ### Docs
 

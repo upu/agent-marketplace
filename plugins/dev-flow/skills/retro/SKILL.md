@@ -1,6 +1,6 @@
 ---
 name: retro
-description: "リリース後のふりかえり（レトロスペクティブ）を実施し、学びを仕組みの改善に変える——出荷したばかりのリリースを証拠ベースで振り返り、うまくいったこと・摩擦になったこと・Claude自身の観察とClaude Codeの使い方の改善点を洗い出し、合意した各改善を適切な仕組み（GitHub issue・メモリ・hook・rule・スキル・CLAUDE.md）に配置する。 when use: リリースの振り返り、ふりかえりしよう、KPT、retrospective、今回の開発どうだった"
+description: "リリース後のふりかえりを実施し、学びを仕組みの改善に着地させる。 when use: リリースの振り返り、ふりかえりしよう、KPT、retrospective、今回の開発どうだった"
 argument-hint: "[リリース済みバージョン。例: 0.1.0]"
 ---
 

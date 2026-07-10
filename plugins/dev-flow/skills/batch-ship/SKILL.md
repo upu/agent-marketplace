@@ -1,6 +1,6 @@
 ---
 name: batch-ship
-description: "マイルストーン等の複数issue（目安5件超）を、issueごとにサブエージェントへ ship を委譲して一括実装する——親セッションはオーケストレーションに徹し、セッション上限と衝突リスクを踏まえて3〜4件の波に区切り、波間で完了確認しながら全issueをマージ済みPRまで進める。 when use: マイルストーンのissueを全部やって、複数issueをまとめてshipして、一括実装して、batch ship"
+description: "複数のGitHub issueを、サブエージェントへの ship 委譲で一括実装する。 when use: マイルストーンのissueを全部やって、複数issueをまとめてshipして、一括実装して、batch ship"
 argument-hint: "[<マイルストーン名> または <issue番号列 例: 3 5 8>]"
 ---
 

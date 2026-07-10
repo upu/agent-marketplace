@@ -1,6 +1,6 @@
 ---
 name: ship
-description: "既存のGitHub issueをこのリポジトリのGitHub Flowに沿って一気通貫で実装する——issueを読み、最新mainからブランチを切り、テストを先に書いてから実装し、PRを開き、CIが green になり、Copilotレビューを確認したらsquash-mergeする。 when use: 既存issueに取り掛かる、issue N をやって、#N に取り掛かる"
+description: "既存のGitHub issueをブランチ作成からPRマージまで一気通貫で実装する。 when use: 既存issueに取り掛かる、issue N をやって、#N に取り掛かる"
 argument-hint: "[<issue番号>]"
 ---
 
