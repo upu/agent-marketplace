@@ -1,6 +1,6 @@
 ---
 name: release
-description: "対象リポジトリのバージョンリリースを実施する。CHANGELOG、package.jsonへ version 情報を反映し、release workflow を実行し、GitHub Release と Marketplace 公開を行う。 when use: x.y.z をリリース、リリースして"
+description: "バージョンリリースを実施し、GitHub ReleaseとMarketplace公開を行う。 when use: x.y.z をリリース、リリースして"
 argument-hint: "[x.y.z]"
 ---
 
