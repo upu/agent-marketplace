@@ -165,11 +165,13 @@ function waitForCopilotReview(
     }
 
     if (!seenPending && !checkedNotConfigured && reviewsResult.ok && requestsResult.ok) {
-      checkedNotConfigured = true;
       const everResult = safeCall(fetchEverRequested, log);
-      if (everResult.ok && !everResult.value) {
-        log("NOT_CONFIGURED: no Copilot review request found for this PR");
-        return 0;
+      if (everResult.ok) {
+        checkedNotConfigured = true;
+        if (!everResult.value) {
+          log("NOT_CONFIGURED: no Copilot review request found for this PR");
+          return 0;
+        }
       }
     }
 

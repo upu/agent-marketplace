@@ -174,3 +174,29 @@ test("waitForCopilotReview retries on a transient gh error instead of giving up"
   assert.equal(code, 0);
   assert.deepEqual(logs, ["ERROR (retrying): gh: rate limit exceeded", "SUBMITTED:APPROVED"]);
 });
+
+test("waitForCopilotReview retries the not-configured (timeline) check after a transient error instead of giving up on it forever", () => {
+  let everCall = 0;
+  const logs = [];
+  const code = waitForCopilotReview("42", "sha1", {
+    intervalMs: 1,
+    timeoutMs: 1000,
+    fetchReviews: () => [],
+    fetchReviewRequests: () => [],
+    fetchEverRequested: () => {
+      everCall++;
+      if (everCall === 1) {
+        throw new Error("gh: rate limit exceeded");
+      }
+      return false;
+    },
+    sleepFn: () => {},
+    log: (msg) => logs.push(msg),
+  });
+  assert.equal(code, 0);
+  assert.equal(everCall, 2);
+  assert.deepEqual(logs, [
+    "ERROR (retrying): gh: rate limit exceeded",
+    "NOT_CONFIGURED: no Copilot review request found for this PR",
+  ]);
+});
