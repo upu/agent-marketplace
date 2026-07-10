@@ -73,24 +73,53 @@ test("isNoChecksError matches gh's no-checks message", () => {
   assert.equal(isNoChecksError("gh: authentication required"), false);
 });
 
-test("waitForChecks returns 0 immediately when the repo has no checks", () => {
+test("waitForChecks returns 0 once no-checks is confirmed on a second consecutive poll", () => {
   const logs = [];
+  const sleeps = [];
   const exec = () => {
     const err = new Error("Command failed");
     err.stderr = "no checks reported on the 'feat/x' branch";
     throw err;
   };
   const code = waitForChecks("42", {
-    intervalMs: 1,
+    intervalMs: 5,
     timeoutMs: 1000,
     exec,
-    sleepFn: () => {
-      throw new Error("should not sleep");
-    },
+    sleepFn: (ms) => sleeps.push(ms),
     log: (msg) => logs.push(msg),
   });
   assert.equal(code, 0);
-  assert.deepEqual(logs, ["NO_CHECKS: nothing to wait for"]);
+  assert.deepEqual(logs, [
+    "no checks reported yet, confirming before concluding none are configured",
+    "NO_CHECKS: nothing to wait for",
+  ]);
+  assert.deepEqual(sleeps, [5]);
+});
+
+test("waitForChecks does not conclude NO_CHECKS from a single poll racing the check being registered", () => {
+  const responses = [
+    () => {
+      const err = new Error("Command failed");
+      err.stderr = "no checks reported on the 'feat/x' branch";
+      throw err;
+    },
+    () => JSON.stringify([{ name: "test", bucket: "pass" }]),
+  ];
+  let call = 0;
+  const exec = () => responses[call++]();
+  const logs = [];
+  const code = waitForChecks("42", {
+    intervalMs: 5,
+    timeoutMs: 1000,
+    exec,
+    sleepFn: () => {},
+    log: (msg) => logs.push(msg),
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(logs, [
+    "no checks reported yet, confirming before concluding none are configured",
+    "DONE:test=pass",
+  ]);
 });
 
 test("waitForChecks returns 1 and logs the failed checks", () => {

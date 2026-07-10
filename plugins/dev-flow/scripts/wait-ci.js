@@ -102,9 +102,17 @@ function sleepSync(ms) {
 function waitForChecks(pr, { intervalMs, timeoutMs, exec, sleepFn, now = Date.now, log = console.log }) {
   const deadline = now() + timeoutMs;
   let prevMessage = null;
+  // A single "no checks reported" is not enough to conclude NO_CHECKS: right
+  // after a push, `gh pr checks` can report this before GitHub has finished
+  // registering the triggered workflow run as a check on the PR (observed
+  // in practice, not just theoretical) — a false NO_CHECKS here would make
+  // the caller skip CI verification entirely. Require it twice in a row,
+  // one intervalMs apart, before trusting it.
+  let consecutiveNoChecks = 0;
   while (true) {
     try {
       const checks = fetchChecksOnce(pr, exec);
+      consecutiveNoChecks = 0;
       const { status, message } = classifyChecks(checks);
       if (status === "FAILED") {
         log(`FAILED:${message}`);
@@ -120,10 +128,16 @@ function waitForChecks(pr, { intervalMs, timeoutMs, exec, sleepFn, now = Date.no
       }
     } catch (err) {
       if (isNoChecksError(err.message)) {
-        log("NO_CHECKS: nothing to wait for");
-        return 0;
+        consecutiveNoChecks++;
+        if (consecutiveNoChecks >= 2) {
+          log("NO_CHECKS: nothing to wait for");
+          return 0;
+        }
+        log("no checks reported yet, confirming before concluding none are configured");
+      } else {
+        consecutiveNoChecks = 0;
+        log(`ERROR (retrying): ${err.message}`);
       }
-      log(`ERROR (retrying): ${err.message}`);
     }
     const remainingMs = deadline - now();
     if (remainingMs <= 0) {
