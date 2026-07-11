@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-11
+
 ### Changed
 
 - `ship` now verifies, after merging a PR that adds or changes a `.github/workflows/*.yml` trigger not covered by `pull_request`, that the workflow's real first run (e.g. on a `push`-only trigger) actually succeeds — a PR's own CI never exercises such a workflow, so it could previously be reported as done while still untested in production.
@@ -41,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented in the README how to pull in skill updates via `/plugin marketplace update upu-agent-marketplace`.
 - Extended the README's skill-writing conventions: SKILL.md bodies use short imperatives with structured branching (bullets/tables), and whys / field notes live in each skill's `reference.md`, referenced from the body by a single line.
 
-[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.3.0
 [0.2.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.2.0
 [0.1.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.1.0
