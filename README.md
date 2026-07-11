@@ -54,9 +54,10 @@ Claude Code 上で以下を実行してください。
 各変更内容は [CHANGELOG.md](./CHANGELOG.md)（英語・正本）/ [CHANGELOG.ja.md](./CHANGELOG.ja.md)（日本語訳）で確認できます。
 `dev-flow` プラグインの `plugin.json` にも `version` フィールドがあり、SemVer で管理しています。
 
-なお、このリポジトリ自身のリリース作業（タグ付け・GitHub Release）はまだ自動化していません。
-配布している `release` スキルは `package.json` の存在を前提にしており、npm パッケージを持たないこのリポジトリには
-現状そのまま適用できないため、当面は `plugin.json` の `version` と CHANGELOG を手動で更新して管理します。
+このリポジトリ自身のリリース作業は、配布している `release` スキル（`package.json` の存在を前提としており、npm パッケージを
+持たないこのリポジトリには適用できない）ではなく、プロジェクト専用の `.claude/skills/repo-release` スキルで行います。
+CHANGELOG確定・`plugin.json` の `version` bump・PRマージまでをこのスキルが担い、マージ後のタグ作成・GitHub Release作成・
+マイルストーンクローズは `.github/workflows/release.yml`（`scripts/release-tag.js`）が自動で行います。
 
 ## スキル開発
 
