@@ -37,13 +37,15 @@ Copilotの自動コードレビューはリポジトリ／PRごとの設定でON
 
 fixup pushごとに再レビューが走り、新しい指摘が1件ずつ出る数珠つなぎの往復になる（実測でPRあたり3ラウンド）。これを避けるため、指摘を「その行だけの修正依頼」ではなく「このクラスの問題がdiffに存在するという信号」として扱い、push前に同種の観点でdiff全体を掃いて同類も直す。なお、fixup push後に再レビューが来るかは一貫しないことが実測で分かっている——「必ず来る/来ない」と決め打ちしないルールはこれによる。
 
-## 手順11: リモートブランチが必ず消える前提を置かない理由
+## 手順11: merge-pr.js の内部挙動
 
-`gh pr merge --delete-branch` はリモートの作業ブランチ削除を試みるが、権限や状況によっては失敗することもある。
+`gh pr merge --delete-branch` はマージ後の後処理としてローカルで `git checkout main` を行い、その後にリモートブランチを削除する。linked worktree では `main` が主 worktree にチェックアウト済みのため checkout が必ず失敗し、マージ自体は GitHub 側で成功しているのにリモートブランチ削除が実行されないまま終わる。ghost-align v1.4.0 の batch-ship（2026-07-10）では、worktree 分離で並列実行したサブエージェントのほぼ全数がこの失敗に当たり、毎回 `git push origin --delete` や `gh api DELETE` での手動リカバリが必要になった。プロースの手順として維持する限りモデルが分岐を読み飛ばすたびに再発しうるため、判定・分岐・削除確認を `merge-pr.js`（agent-marketplace#56）に切り出した:
 
-## 手順11: worktree 内では `--delete-branch` を使わない理由
-
-`gh pr merge --delete-branch` はマージ後の後処理としてローカルで `git checkout main` を行い、その後にリモートブランチを削除する。linked worktree では `main` が主 worktree にチェックアウト済みのため checkout が必ず失敗し、マージ自体は GitHub 側で成功しているのにリモートブランチ削除が実行されないまま終わる。ghost-align v1.4.0 の batch-ship（2026-07-10）では、worktree 分離で並列実行したサブエージェントのほぼ全数がこの失敗に当たり、毎回 `git push origin --delete` や `gh api DELETE` での手動リカバリが必要になった。失敗してからリカバリするのではなく、worktree 内では最初から `--delete-branch` を使わず明示削除する。
+- `git rev-parse --git-common-dir` の出力が `.git`（通常ツリー）か、それ以外の絶対パス（linked worktree）かで分岐する。
+- 通常ツリー: `gh pr merge <pr> --squash --delete-branch` を実行して終了する。
+- worktree: マージ前に `gh pr view <pr> --json headRefName` でブランチ名を取得し（マージ後ではなく前に取得するのは、取得失敗時にブランチ名不明のままマージ済みにしないため）、`--delete-branch` なしでマージし、`gh pr view <pr> --json mergedAt` で `mergedAt` が入っていることを確認してから `git push origin --delete <branch>` を実行する。`git checkout main` は行わない。
+- リモートブランチ削除（`--delete-branch` 経由・worktree の明示削除経由のいずれも）の失敗は、マージ自体が成功していればログの1行に留め、終了コードは失敗にしない——`gh pr merge --delete-branch` 自体も削除の成功を保証しない既存の前提と揃える。
+- `gh pr merge` 自体が失敗する（CI未green・コンフリクト等）場合はエラーをそのまま呼び出し元に伝播させ、終了コード `1` にする。
 
 ## 手順12: ワークフローファイル変更時に実発火を確認する理由
 

@@ -52,9 +52,13 @@ argument-hint: "[<issue番号>]"
       - 実際のバグ・見落とし・スコープ内の問題 → push前に同種の観点でdiff全体を掃き、見つけた同類も直して1回のfixup pushに束ねる。手順6（ゲート）をやり直し、pushして手順9からやり直す。
     - fixup push後の再レビューは「タイムアウト内で来るかもしれない」として扱い、「必ず来る/来ない」と決め打ちしない。着弾したレビューの全指摘が「修正して返信」または「返信のみ」で解決されるまではマージへ進まない。
 11. **マージする** — マージまで進めるのがこのスキルのデフォルトであり、マージ前の事前確認は不要（明示の `/ship` 指示ではなく会話から始めたshipでも同様）。
-    - ユーザーが「マージ前で止めて」等を明示していた → `gh pr merge` を実行せず停止して状態を報告し、以降の手順に進まない。
-    - 停止指定が無い → `gh pr merge <pr> --squash --delete-branch` を実行し（リモートブランチが必ず消える前提は置かない）、`git checkout main && git pull` でローカルの `main` を同期する。
-    - **git worktree 内で実行している場合**（`main` が別の worktree でチェックアウトされている——サブエージェントの worktree 分離実行が典型。`git rev-parse --git-common-dir` が `.git` 以外を返すことで判定できる）→ `--delete-branch` を付けずに `gh pr merge <pr> --squash` でマージし、`gh pr view <pr> --json mergedAt` でマージ済みを確認してから `git push origin --delete <branch>` でリモートブランチを明示削除する。`git checkout main` は実行しない（別 worktree が使用中のため必ず失敗する）。ローカルブランチと worktree 自体の掃除は親セッション側に委ねる。
+    - ユーザーが「マージ前で止めて」等を明示していた → `merge-pr.js` を実行せず停止して状態を報告し、以降の手順に進まない。
+    - 停止指定が無い → `node "${CLAUDE_PLUGIN_ROOT}/scripts/merge-pr.js" <pr>` を実行する。通常のgitツリーか linked worktree か（`git rev-parse --git-common-dir` が `.git` 以外を返すか）はスクリプト自身が判定し、通常ツリーなら `--delete-branch` 付きで、worktree なら `--delete-branch` なしでマージ後 `mergedAt` を確認してから `git push origin --delete <branch>` でリモートブランチを明示削除する（`git checkout main` は実行しない——worktree では別 worktree が使用中のため必ず失敗する）。終了コードで判定する:
+
+      | 終了コード | 意味 | 次の行動 |
+      | --- | --- | --- |
+      | `0` | マージ成功（リモートブランチ削除の成否はログの1行で分かる。必ず消える前提は置かない） | 通常ツリーのみ `git checkout main && git pull` でローカル `main` を同期し、次へ |
+      | `1` | マージ失敗（CI未green・コンフリクト等）、引数エラー、`gh` 不在 | 原因を確認して修正 → 手順9からやり直す |
 12. **ワークフローファイルを変更した場合は実発火を確認する** — 手順8のPRの差分が `.github/workflows/*.yml` の新規追加、または既存ワークフローの `on:` トリガー変更を含む場合のみ実施する。変更後の `on:` が `pull_request`（またはこのPR自体のCIで確実に発火するイベント）を含まない（例: `push`専用・`schedule`・`workflow_dispatch`のみ）→ 手順9のCI greenはそのワークフローを一度も実行していない。マージ後、`gh run list --workflow=<ファイル名> -L 1` で該当runを取得し、`gh run watch <run-id> --exit-status` で完了を待つ。失敗していれば原因を調査し、新規issueを起票してから修正する——マージ済みの変更をそのまま「完了」として報告しない。
 13. **ローカルブランチを掃除する** — `git fetch --prune origin` → `git branch -vv` で upstream が `[origin/<branch>: gone]` のローカルブランチを探す → 対応するPRの `gh pr view <番号または対応するブランチ名> --json mergedAt --jq '.mergedAt'` に値が入っている（=マージ済み）ことを確認してから `git branch -D <branch>` で削除する。`git branch --merged origin/main` やコミット差分ベースのマージ済み判定は使わない（squashマージで誤判定する）。
 14. **報告する** — マージされたPR番号、`Closes #N` によりissueが自動クローズされたこと、新しい `main` のコミット、Copilotレビューの結果（あれば）、掃除したローカルブランチを述べる。手順12を実施した場合は、実発火確認の結果（成功/失敗、runへのリンク）も併せて述べる。
@@ -64,7 +68,7 @@ argument-hint: "[<issue番号>]"
 - `main` へは直接pushせず、必ずブランチを切ってPR経由で反映する。
 - 1 issue = 1 PR。実装途中でスコープが膨らんだら、別issue/別PRに分割する。
 - このスキルは既に存在するissueが対象。issue化されていない新規の作業を説明されたら、まず `gh issue create` を提案してからshipする。
-- 手順9・10の待ちは、単一の自己完結したフォアグラウンド呼び出しでブロックするのが既定（Bashのタイムアウトはスクリプトの `--timeout-ms` より少し長めに取る）。**サブエージェントとして実行されている場合（worktree 分離実行が典型）は必ずこの既定に従う**——ターンを終えて完了通知を待つ運用（バックグラウンド発火・Monitor背景監視）は、ターン終了がエージェントの停止として扱われ、CI完了の通知が来ても作業が再開されるとは限らない。対話セッション本体で、かつMonitorツールが使える環境に限り、背景監視（`timeout_ms` はスクリプトの `--timeout-ms` より少し長め、`persistent` はfalse）を使ってよい。手順11の `gh pr merge` はいずれの環境でも単一のフォアグラウンド呼び出しのまま変更しない。
+- 手順9・10の待ちは、単一の自己完結したフォアグラウンド呼び出しでブロックするのが既定（Bashのタイムアウトはスクリプトの `--timeout-ms` より少し長めに取る）。**サブエージェントとして実行されている場合（worktree 分離実行が典型）は必ずこの既定に従う**——ターンを終えて完了通知を待つ運用（バックグラウンド発火・Monitor背景監視）は、ターン終了がエージェントの停止として扱われ、CI完了の通知が来ても作業が再開されるとは限らない。対話セッション本体で、かつMonitorツールが使える環境に限り、背景監視（`timeout_ms` はスクリプトの `--timeout-ms` より少し長め、`persistent` はfalse）を使ってよい。手順11の `merge-pr.js` はいずれの環境でも単一のフォアグラウンド呼び出しのまま変更しない。
 - 変更がローカル `main` に乗ってしまったことに気づいた場合（`git branch --show-current` / `git status -sb` で確認）、`main` に一切pushせずに復旧する:
   - 未コミット → `git checkout -b <branch>` で変更ごと新しいブランチへ移す。
   - コミット済み → `git branch <branch>` でそのコミットにブランチを立て、`git reset --hard origin/main` でローカル `main` を復元し、`git checkout <branch>` で作業を続ける。

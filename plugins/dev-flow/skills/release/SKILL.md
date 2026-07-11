@@ -50,7 +50,7 @@ CHANGELOG と package.json の version 情報を更新し、release workflow を
       - 誤検知・スコープ外 → コード変更せず理由を返信する。
     - fixup push 後の再レビューは「タイムアウト内で来るかもしれない」として扱い、「必ず来る/来ない」と決め打ちしない。手動での後押し（`gh api repos/:owner/:repo/pulls/<pr>/requested_reviewers -f 'reviewers[]=Copilot'` または `gh pr edit <pr> --add-reviewer Copilot`）は試してよいが依存しない。タイムアウトでその sha に新規レビューが無ければ、対応済み指摘へ「何を変えたか」を返信して手順11へ進む。
     - 着弾したレビューの全指摘が「修正して返信」または「返信のみ」で解決されるまでは手順11へ進まない。
-11. **マージ** — `gh pr merge <pr> --squash --delete-branch` を実行し、`git checkout main && git pull` でローカル main を同期する。このマージ（`package.json` の version bump を含む）が `release.yml` のトリガーとなる。
+11. **マージ** — `node "${CLAUDE_PLUGIN_ROOT}/scripts/merge-pr.js" <pr>` を実行する。通常のgitツリーか linked worktree か（`git rev-parse --git-common-dir` が `.git` 以外を返すか）はスクリプト自身が判定し、通常ツリーなら `--delete-branch` 付きで、worktree なら `--delete-branch` なしでマージ後 `mergedAt` を確認してから `git push origin --delete <branch>` でリモートブランチを明示削除する（`git checkout main` は実行しない）。終了コード `0`（マージ成功）なら通常ツリーのみ `git checkout main && git pull` でローカル main を同期し、次へ進む。終了コード `1`（マージ失敗・引数エラー・`gh` 不在）なら原因を確認して修正し、手順9からやり直す。このマージ（`package.json` の version bump を含む）が `release.yml` のトリガーとなる。
 12. **リリース結果検証** — `gh run list --workflow=release.yml -L 1` で対象 run を取得し（直前 merge が最新 main push のため通常これが対象）、`set -o pipefail; gh run watch <run-id> --exit-status 2>&1 | tail -20` を単発フォアグラウンドで実行する（長めタイムアウト例: 600000 ms）。green なら GitHub Release（副作用として `vx.y.z` タグ生成）+ `.vsix` 添付が成功し、`VSCE_PAT` があれば Marketplace 公開も実行済み。
 13. **失敗時の復旧** — `gh run view <run-id> --log-failed` で失敗箇所を確認し、分岐する:
     - **Release 作成前で失敗**（compile / package / `verify-pat`）→ 原因を修正（コード問題なら通常 GitHub Flow、瞬間的要因なら再実行のみ）し、`gh run rerun <run-id> --failed`。この段階では Release 未作成なので重複生成リスクはない。
@@ -66,4 +66,4 @@ CHANGELOG と package.json の version 情報を更新し、release workflow を
 - 1 PR = 1 リリース。リリース PR の内容は `prepare-release.js` による CHANGELOG 確定と version bump のみに限定し、無関係な変更を混ぜない。
 - リリースコミット自体はユーザー向け変更ではないため、新規 `[Unreleased]` エントリは追加しない。
 - `vx.y.z` タグは workflow 内の `gh release create` で生成され、手動 push しない。公開済み GitHub Release に紐づく既存タグを force 更新しない。公開後の誤りは新しい patch バージョンで取り直す。
-- CI 待機（手順9）・マージ（手順11）・リリース検証（手順12）は、各ステップを単発フォアグラウンド呼び出しで構成する（`gh pr checks --watch`、`gh pr merge`、`gh run watch`）。後続ターンで再開前提の fire-and-forget を使わない。
+- CI 待機（手順9）・マージ（手順11）・リリース検証（手順12）は、各ステップを単発フォアグラウンド呼び出しで構成する（`gh pr checks --watch`、`merge-pr.js`、`gh run watch`）。後続ターンで再開前提の fire-and-forget を使わない。
