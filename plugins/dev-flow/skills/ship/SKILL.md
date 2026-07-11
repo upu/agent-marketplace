@@ -54,6 +54,7 @@ argument-hint: "[<issue番号>]"
 11. **マージする** — マージまで進めるのがこのスキルのデフォルトであり、マージ前の事前確認は不要（明示の `/ship` 指示ではなく会話から始めたshipでも同様）。
     - ユーザーが「マージ前で止めて」等を明示していた → `gh pr merge` を実行せず停止して状態を報告し、以降の手順に進まない。
     - 停止指定が無い → `gh pr merge <pr> --squash --delete-branch` を実行し（リモートブランチが必ず消える前提は置かない）、`git checkout main && git pull` でローカルの `main` を同期する。
+    - **git worktree 内で実行している場合**（`main` が別の worktree でチェックアウトされている——サブエージェントの worktree 分離実行が典型。`git rev-parse --git-common-dir` が `.git` 以外を返すことで判定できる）→ `--delete-branch` を付けずに `gh pr merge <pr> --squash` でマージし、`gh pr view <pr> --json mergedAt` でマージ済みを確認してから `git push origin --delete <branch>` でリモートブランチを明示削除する。`git checkout main` は実行しない（別 worktree が使用中のため必ず失敗する）。ローカルブランチと worktree 自体の掃除は親セッション側に委ねる。
 12. **ローカルブランチを掃除する** — `git fetch --prune origin` → `git branch -vv` で upstream が `[origin/<branch>: gone]` のローカルブランチを探す → 対応するPRの `gh pr view <番号または対応するブランチ名> --json mergedAt --jq '.mergedAt'` に値が入っている（=マージ済み）ことを確認してから `git branch -D <branch>` で削除する。`git branch --merged origin/main` やコミット差分ベースのマージ済み判定は使わない（squashマージで誤判定する）。
 13. **報告する** — マージされたPR番号、`Closes #N` によりissueが自動クローズされたこと、新しい `main` のコミット、Copilotレビューの結果（あれば）、掃除したローカルブランチを述べる。
 
@@ -62,7 +63,7 @@ argument-hint: "[<issue番号>]"
 - `main` へは直接pushせず、必ずブランチを切ってPR経由で反映する。
 - 1 issue = 1 PR。実装途中でスコープが膨らんだら、別issue/別PRに分割する。
 - このスキルは既に存在するissueが対象。issue化されていない新規の作業を説明されたら、まず `gh issue create` を提案してからshipする。
-- 手順9・10の待ちは、Bashツールが使える環境ではMonitorツールで背景監視してよい（`timeout_ms` はスクリプトの `--timeout-ms` より少し長め、`persistent` はfalseでよい）。PowerShellのみの環境では単一の自己完結したフォアグラウンド呼び出しでブロックし、後のターンでの継ぎ足しを前提にしたバックグラウンド発火はしない。手順11の `gh pr merge` はいずれの環境でも単一のフォアグラウンド呼び出しのまま変更しない。
+- 手順9・10の待ちは、単一の自己完結したフォアグラウンド呼び出しでブロックするのが既定（Bashのタイムアウトはスクリプトの `--timeout-ms` より少し長めに取る）。**サブエージェントとして実行されている場合（worktree 分離実行が典型）は必ずこの既定に従う**——ターンを終えて完了通知を待つ運用（バックグラウンド発火・Monitor背景監視）は、ターン終了がエージェントの停止として扱われ、CI完了の通知が来ても作業が再開されるとは限らない。対話セッション本体で、かつMonitorツールが使える環境に限り、背景監視（`timeout_ms` はスクリプトの `--timeout-ms` より少し長め、`persistent` はfalse）を使ってよい。手順11の `gh pr merge` はいずれの環境でも単一のフォアグラウンド呼び出しのまま変更しない。
 - 変更がローカル `main` に乗ってしまったことに気づいた場合（`git branch --show-current` / `git status -sb` で確認）、`main` に一切pushせずに復旧する:
   - 未コミット → `git checkout -b <branch>` で変更ごと新しいブランチへ移す。
   - コミット済み → `git branch <branch>` でそのコミットにブランチを立て、`git reset --hard origin/main` でローカル `main` を復元し、`git checkout <branch>` で作業を続ける。
