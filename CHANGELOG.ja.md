@@ -10,6 +10,7 @@
 ### Changed
 
 - `ship`/`release` のPRマージを、`gh pr merge --delete-branch` の分岐をプロースで説明する方式から、新しい `merge-pr.js` スクリプト呼び出しに変更した。スクリプト自身が現在の作業ツリーが linked worktree か（`git rev-parse --git-common-dir` が `.git` 以外を返すか）を判定し、通常ツリーなら `--delete-branch` 付きでマージ、worktree なら `--delete-branch` なしでマージ後 `mergedAt` を確認してから `git push origin --delete <branch>` でリモートブランチを明示削除する（`git checkout main` は実行しない——worktree では必ず失敗するため）。worktree分離実行したサブエージェントが繰り返しこの分岐を読み飛ばし `--delete-branch` を誤用して手動リカバリが必要になっていた事故の再発を防ぐ。
+- `ship` 手順13（ローカルブランチ掃除）を、`git branch -vv` の出力を読んで `[origin/<branch>: gone]` を探し各PRの `mergedAt` を手動で突き合わせるプロースから、新しい `cleanup-merged-branches.js` スクリプト呼び出しに変更した。`git for-each-ref` の構造化された `%(upstream:track)` フィールドでupstreamが `gone` のローカルブランチを列挙し、ブランチごとに `gh pr view <branch> --json number,state,mergedAt` でマージ状態を確認してから（`git branch --merged` はsquashマージを誤判定するため使わない）マージ済みのものだけ `git branch -D` で削除し、未確認のブランチは削除せず報告する。
 
 ## [0.3.0] - 2026-07-11
 

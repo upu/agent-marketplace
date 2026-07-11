@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `ship` and `release` now merge PRs via a new `merge-pr.js` script instead of an inline prose branch on `gh pr merge --delete-branch`. The script itself detects whether the current tree is a linked worktree (`git rev-parse --git-common-dir` returning something other than `.git`) and merges accordingly: `--delete-branch` on a normal tree, or a plain squash merge followed by a `mergedAt` check and an explicit `git push origin --delete <branch>` on a worktree (never `git checkout main`, which always fails there). This replaces prose that sub-agents running in worktree isolation repeatedly misread, misapplying `--delete-branch` and requiring manual recovery.
+- `ship` step 13 (local branch cleanup) now runs a new `cleanup-merged-branches.js` script instead of prose telling the model to read `git branch -vv` output looking for `[origin/<branch>: gone]` and cross-check each PR's `mergedAt` by hand. The script enumerates local branches with a gone upstream via `git for-each-ref`'s structured `%(upstream:track)` field, confirms merge status per branch via `gh pr view <branch> --json number,state,mergedAt` (never `git branch --merged`, which misjudges squash-merged branches), deletes only confirmed-merged branches with `git branch -D`, and reports unconfirmed branches without touching them.
 
 ## [0.3.0] - 2026-07-11
 

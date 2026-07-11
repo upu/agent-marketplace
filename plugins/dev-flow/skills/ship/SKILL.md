@@ -60,7 +60,7 @@ argument-hint: "[<issue番号>]"
       | `0` | マージ成功（リモートブランチ削除の成否はログの1行で分かる。必ず消える前提は置かない） | 通常ツリーのみ `git checkout main && git pull` でローカル `main` を同期し、次へ |
       | `1` | マージ失敗（CI未green・コンフリクト等）、引数エラー、`gh` 不在 | 原因を確認して修正 → 手順9からやり直す |
 12. **ワークフローファイルを変更した場合は実発火を確認する** — 手順8のPRの差分が `.github/workflows/*.yml` の新規追加、または既存ワークフローの `on:` トリガー変更を含む場合のみ実施する。変更後の `on:` が `pull_request`（またはこのPR自体のCIで確実に発火するイベント）を含まない（例: `push`専用・`schedule`・`workflow_dispatch`のみ）→ 手順9のCI greenはそのワークフローを一度も実行していない。マージ後、`gh run list --workflow=<ファイル名> -L 1` で該当runを取得し、`gh run watch <run-id> --exit-status` で完了を待つ。失敗していれば原因を調査し、新規issueを起票してから修正する——マージ済みの変更をそのまま「完了」として報告しない。
-13. **ローカルブランチを掃除する** — `git fetch --prune origin` → `git branch -vv` で upstream が `[origin/<branch>: gone]` のローカルブランチを探す → 対応するPRの `gh pr view <番号または対応するブランチ名> --json mergedAt --jq '.mergedAt'` に値が入っている（=マージ済み）ことを確認してから `git branch -D <branch>` で削除する。`git branch --merged origin/main` やコミット差分ベースのマージ済み判定は使わない（squashマージで誤判定する）。
+13. **ローカルブランチを掃除する** — `git fetch --prune origin` を実行してから `node "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-merged-branches.js"` を実行する。upstreamが `gone` のローカルブランチを列挙し、各ブランチに対応するPRの `mergedAt` を確認してからマージ済みのものだけ `git branch -D` で削除する（`git branch --merged origin/main` やコミット差分ベースの判定は使わない——squashマージで誤判定するため）。マージ未確認のブランチ（PRが見つからない・マージ未確認）は削除せずログに `SKIP:` として報告される。終了コード `0` が通常（一部ブランチがSKIPでも失敗扱いにしない）で、`1` は `gh` 不在または予期しないエラー。ログの `DELETED:`/`SKIP:` 行をそのまま手順14の報告に使う。
 14. **報告する** — マージされたPR番号、`Closes #N` によりissueが自動クローズされたこと、新しい `main` のコミット、Copilotレビューの結果（あれば）、掃除したローカルブランチを述べる。手順12を実施した場合は、実発火確認の結果（成功/失敗、runへのリンク）も併せて述べる。
 
 ## 補足
