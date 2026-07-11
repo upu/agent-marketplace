@@ -10,12 +10,23 @@
 //             1 = at least one check failed or was cancelled, invalid/missing
 //                 arguments, or `gh` is not available
 //             2 = timed out before checks resolved
+//             3 = PR is CONFLICTING against its base branch (a check that
+//                 never appears is often actually blocked on this, not on
+//                 CI itself — see agent-marketplace#58). Rebase onto the
+//                 latest origin/main and re-run; this script never rebases
+//                 or force-pushes on its own.
 "use strict";
 
 const { execFileSync } = require("node:child_process");
 
 const DEFAULT_INTERVAL_MS = 20000;
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
+// Number of consecutive polls with an unchanged PENDING message before
+// spending an extra `gh` call on a mergeable check. Low enough to catch a
+// genuinely stuck check well before --timeout-ms, high enough that normal
+// jitter between polls (bucket flipping pending -> pending on a different
+// check) doesn't trigger it on every poll.
+const STALL_LIMIT = 3;
 
 function parseArgs(argv) {
   const args = { pr: null, intervalMs: DEFAULT_INTERVAL_MS, timeoutMs: DEFAULT_TIMEOUT_MS };
@@ -94,6 +105,33 @@ function fetchChecksOnce(pr, exec) {
   return JSON.parse(raw);
 }
 
+function fetchMergeableOnce(pr, exec) {
+  const raw = runGh(["pr", "view", String(pr), "--json", "mergeable"], exec);
+  return JSON.parse(raw).mergeable;
+}
+
+/**
+ * Checks whether `pr` is blocked on a base-branch conflict rather than CI
+ * itself. Returns true (and logs a dedicated `CONFLICTING:` line) only for
+ * `mergeable === "CONFLICTING"`; a lookup failure or any other value (e.g.
+ * `MERGEABLE`, or `UNKNOWN` while GitHub is still computing it) is logged
+ * and treated as "not conflicting" so the normal poll loop keeps going.
+ */
+function checkConflicting(pr, exec, log) {
+  let mergeable;
+  try {
+    mergeable = fetchMergeableOnce(pr, exec);
+  } catch (err) {
+    log(`ERROR (mergeable check failed, retrying): ${err.message}`);
+    return false;
+  }
+  if (mergeable === "CONFLICTING") {
+    log(`CONFLICTING: PR #${pr} is not mergeable against its base branch (mergeable=CONFLICTING); rebase onto the latest origin/main to resolve, then push and re-run`);
+    return true;
+  }
+  return false;
+}
+
 /** Synchronously block for `ms` without spawning a subprocess. */
 function sleepSync(ms) {
   const view = new Int32Array(new SharedArrayBuffer(4));
@@ -117,6 +155,10 @@ function waitForChecks(pr, { intervalMs, timeoutMs, exec, sleepFn, now = Date.no
   // the caller skip CI verification entirely. Require it twice in a row,
   // one intervalMs apart, before trusting it.
   let consecutiveNoChecks = 0;
+  // Consecutive PENDING polls whose message is byte-for-byte identical to
+  // the previous one — a check that's genuinely stuck (e.g. blocked by a
+  // base-branch conflict) never changes, whereas normal CI churn does.
+  let stallCount = 0;
   while (true) {
     try {
       const checks = fetchChecksOnce(pr, exec);
@@ -130,9 +172,22 @@ function waitForChecks(pr, { intervalMs, timeoutMs, exec, sleepFn, now = Date.no
         log(`DONE:${message}`);
         return 0;
       }
-      if (message && message !== prevMessage) {
-        log(message);
-        prevMessage = message;
+      if (message === prevMessage) {
+        stallCount++;
+      } else {
+        stallCount = 0;
+        if (message) {
+          log(message);
+        }
+      }
+      prevMessage = message;
+      // Every STALL_LIMIT-th unchanged poll, spend one extra `gh` call to
+      // rule out a base-branch conflict as the reason nothing is moving —
+      // see agent-marketplace#58 (previously this was a manual step in
+      // ship/SKILL.md's step 9 footnote, easy to forget under a silent
+      // PENDING stall).
+      if (stallCount > 0 && stallCount % STALL_LIMIT === 0 && checkConflicting(pr, exec, log)) {
+        return 3;
       }
     } catch (err) {
       if (isNoChecksError(err.message)) {
@@ -149,6 +204,13 @@ function waitForChecks(pr, { intervalMs, timeoutMs, exec, sleepFn, now = Date.no
     }
     const remainingMs = deadline - now();
     if (remainingMs <= 0) {
+      // Last chance before giving up as a plain TIMEOUT: a conflict-blocked
+      // PR deserves the more specific CONFLICTING signal even if it never
+      // stalled on an identical message (e.g. --timeout-ms shorter than
+      // STALL_LIMIT * --interval-ms).
+      if (checkConflicting(pr, exec, log)) {
+        return 3;
+      }
       log("TIMEOUT: checks did not resolve within the timeout");
       return 2;
     }

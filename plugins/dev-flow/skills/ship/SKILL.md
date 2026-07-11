@@ -36,8 +36,9 @@ argument-hint: "[<issue番号>]"
    | `0` | 全チェック通過、または `NO_CHECKS:`（このリポジトリにCI設定が無い） | 手順10へ |
    | `1` | `FAILED:`（チェック失敗）、引数エラー、`gh` 不在 | 失敗ログを確認して修正 → push → 手順9をやり直す |
    | `2` | `TIMEOUT:` | 状況を確認し、`--timeout-ms=` を延ばして再実行するかユーザーに報告する |
+   | `3` | `CONFLICTING:`（PRがベースブランチにマージ不可） | 最新の `origin/main` にrebaseして解消し、force-pushして手順9をやり直す |
 
-   - 特定のチェック（例 `test`）が一向に一覧に現れず、無関係なチェックだけが完了する → `gh pr view <pr> --json mergeable` を確認し、`CONFLICTING` なら最新の `origin/main` にrebaseして解消し、force-pushして再度待つ。
+   - `wait-ci.js` はポーリングループの中で `mergeable` 状態の確認も自動的に行う——特定のチェックが同じPENDINGメッセージのまま複数回変化しない場合、またはタイムアウト直前になった場合に `gh pr view <pr> --json mergeable` を内部で確認し、`CONFLICTING` なら `CONFLICTING:` ログ行とともに終了コード `3` で終了する（rebase自体は自動化しない）。
 10. **Copilotレビューを待つ** — `node "${CLAUDE_PLUGIN_ROOT}/scripts/wait-copilot-review.js" <pr>` を実行する（デフォルト25秒間隔・15分タイムアウト、`--interval-ms=` `--timeout-ms=` で調整可。sha省略時は現HEADを自動使用する——新しいpushの後は改めて実行すれば新HEADを見る）。終了コードで判定する:
 
     | 終了コード | 意味 | 次の行動 |

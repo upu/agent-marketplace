@@ -228,3 +228,147 @@ test("waitForChecks caps the final sleep to the time remaining, instead of overs
   assert.deepEqual(sleeps, [100, 100, 50]);
   assert.equal(time, 250);
 });
+
+test("waitForChecks reports CONFLICTING with exit code 3 once a PENDING check stalls on the same message", () => {
+  const logs = [];
+  // Fake clock: bounds the loop to (timeoutMs / intervalMs) iterations even
+  // if stall detection is missing entirely, so a red run fails fast on the
+  // TIMEOUT assertion instead of spinning until a real 1000000ms elapses.
+  let time = 0;
+  const exec = (cmd, args) => {
+    if (args[1] === "checks") {
+      // Always the same pending check, i.e. a check that never appears
+      // to move — the stalled case this feature exists to detect.
+      return JSON.stringify([{ name: "test", bucket: "pending" }]);
+    }
+    if (args[1] === "view") {
+      return JSON.stringify({ mergeable: "CONFLICTING" });
+    }
+    throw new Error(`unexpected gh invocation: ${args.join(" ")}`);
+  };
+  const code = waitForChecks("42", {
+    intervalMs: 10,
+    timeoutMs: 1000,
+    exec,
+    sleepFn: (ms) => {
+      time += ms;
+    },
+    now: () => time,
+    log: (msg) => logs.push(msg),
+  });
+  assert.equal(code, 3);
+  assert.ok(
+    logs.some((l) => l.startsWith("CONFLICTING:")),
+    `expected a CONFLICTING: log line, got: ${JSON.stringify(logs)}`
+  );
+});
+
+test("waitForChecks does not treat a stalled PENDING check as CONFLICTING when the PR is actually mergeable, and keeps polling to DONE", () => {
+  const logs = [];
+  let checksCall = 0;
+  let time = 0;
+  const exec = (cmd, args) => {
+    if (args[1] === "checks") {
+      checksCall++;
+      // Stalls on the same PENDING message for several polls (long enough
+      // to trigger a mergeable check) before finally resolving.
+      if (checksCall <= 4) {
+        return JSON.stringify([{ name: "test", bucket: "pending" }]);
+      }
+      return JSON.stringify([{ name: "test", bucket: "pass" }]);
+    }
+    if (args[1] === "view") {
+      return JSON.stringify({ mergeable: "MERGEABLE" });
+    }
+    throw new Error(`unexpected gh invocation: ${args.join(" ")}`);
+  };
+  const code = waitForChecks("42", {
+    intervalMs: 10,
+    timeoutMs: 1000,
+    exec,
+    sleepFn: (ms) => {
+      time += ms;
+    },
+    now: () => time,
+    log: (msg) => logs.push(msg),
+  });
+  assert.equal(code, 0);
+  assert.ok(!logs.some((l) => l.startsWith("CONFLICTING:")), `did not expect a CONFLICTING: log line, got: ${JSON.stringify(logs)}`);
+  assert.equal(logs[logs.length - 1], "DONE:test=pass");
+});
+
+test("waitForChecks reports CONFLICTING instead of TIMEOUT when the deadline is reached and the PR is CONFLICTING", () => {
+  const exec = (cmd, args, callCount = 0) => {
+    if (args[1] === "checks") {
+      // A different check name each poll so the message never repeats,
+      // which keeps the stall-based trigger from firing — this exercises
+      // the separate near-timeout trigger instead.
+      return JSON.stringify([{ name: `chk-${Math.random()}`, bucket: "pending" }]);
+    }
+    if (args[1] === "view") {
+      return JSON.stringify({ mergeable: "CONFLICTING" });
+    }
+    throw new Error(`unexpected gh invocation: ${args.join(" ")}`);
+  };
+  let time = 0;
+  const logs = [];
+  const code = waitForChecks("42", {
+    intervalMs: 100,
+    timeoutMs: 250,
+    exec,
+    sleepFn: (ms) => {
+      time += ms;
+    },
+    now: () => time,
+    log: (msg) => logs.push(msg),
+  });
+  assert.equal(code, 3);
+  assert.ok(
+    logs.some((l) => l.startsWith("CONFLICTING:")),
+    `expected a CONFLICTING: log line, got: ${JSON.stringify(logs)}`
+  );
+  assert.ok(!logs.some((l) => l === "TIMEOUT: checks did not resolve within the timeout"));
+});
+
+test("waitForChecks still times out normally when the deadline is reached and the PR is not CONFLICTING", () => {
+  const exec = (cmd, args) => {
+    if (args[1] === "checks") {
+      return JSON.stringify([{ name: `chk-${Math.random()}`, bucket: "pending" }]);
+    }
+    if (args[1] === "view") {
+      return JSON.stringify({ mergeable: "MERGEABLE" });
+    }
+    throw new Error(`unexpected gh invocation: ${args.join(" ")}`);
+  };
+  let time = 0;
+  const logs = [];
+  const code = waitForChecks("42", {
+    intervalMs: 100,
+    timeoutMs: 250,
+    exec,
+    sleepFn: (ms) => {
+      time += ms;
+    },
+    now: () => time,
+    log: (msg) => logs.push(msg),
+  });
+  assert.equal(code, 2);
+  assert.equal(logs[logs.length - 1], "TIMEOUT: checks did not resolve within the timeout");
+});
+
+test("waitForChecks never calls `gh pr view --json mergeable` when checks resolve quickly (DONE), leaving the fast path untouched", () => {
+  const calls = [];
+  const exec = (cmd, args) => {
+    calls.push(args.join(" "));
+    return JSON.stringify([{ name: "test", bucket: "pass" }]);
+  };
+  const code = waitForChecks("42", {
+    intervalMs: 1,
+    timeoutMs: 1000,
+    exec,
+    sleepFn: () => {},
+    log: () => {},
+  });
+  assert.equal(code, 0);
+  assert.ok(!calls.some((c) => c.includes("--json mergeable")), `did not expect a mergeable lookup, got: ${JSON.stringify(calls)}`);
+});
