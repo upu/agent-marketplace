@@ -45,7 +45,11 @@ fixup pushごとに再レビューが走り、新しい指摘が1件ずつ出る
 
 `gh pr merge --delete-branch` はマージ後の後処理としてローカルで `git checkout main` を行い、その後にリモートブランチを削除する。linked worktree では `main` が主 worktree にチェックアウト済みのため checkout が必ず失敗し、マージ自体は GitHub 側で成功しているのにリモートブランチ削除が実行されないまま終わる。ghost-align v1.4.0 の batch-ship（2026-07-10）では、worktree 分離で並列実行したサブエージェントのほぼ全数がこの失敗に当たり、毎回 `git push origin --delete` や `gh api DELETE` での手動リカバリが必要になった。失敗してからリカバリするのではなく、worktree 内では最初から `--delete-branch` を使わず明示削除する。
 
-## 手順12: マージ済み判定を必ずPRの `mergedAt` で行う理由
+## 手順12: ワークフローファイル変更時に実発火を確認する理由
+
+agent-marketplace自身のv0.2.0リリース（2026-07-11）で `.github/workflows/release.yml` を新設した際、`node --test` は139件全green だったにもかかわらず、実際のリリース実行で2回連続して失敗した（agent-marketplace#48, #50）。原因はGITHUB_TOKENのデフォルト権限にMilestones APIへのアクセスが無かったこと、`actions/checkout` がリモートの全タグを必ずしもfetchしないことの2点で、どちらも `git`/`gh` 呼び出しをモックしたユニットテストでは原理的に検知できない。`push`専用トリガーなど、PR自体のCI（`pull_request` イベント）では一度も実行されないワークフローは、テストゲート（手順6）がgreenでも実運用未検証のまま完了扱いになってしまう。
+
+## 手順13: マージ済み判定を必ずPRの `mergedAt` で行う理由
 
 squashマージではローカルブランチの先端コミットが `origin/main` の履歴に含まれない。そのため `git branch --merged origin/main` ではマージ済みブランチが列挙されず、コミット差分ベースの判定はマージ済みでも空にならず誤判定になる——マージ方式によって挙動が変わるので、判定は必ずPRのマージ状態で行う。また upstream の `gone` はリモートブランチが削除済みであることを示すだけで、マージ済みを保証しない。
 

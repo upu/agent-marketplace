@@ -55,8 +55,9 @@ argument-hint: "[<issue番号>]"
     - ユーザーが「マージ前で止めて」等を明示していた → `gh pr merge` を実行せず停止して状態を報告し、以降の手順に進まない。
     - 停止指定が無い → `gh pr merge <pr> --squash --delete-branch` を実行し（リモートブランチが必ず消える前提は置かない）、`git checkout main && git pull` でローカルの `main` を同期する。
     - **git worktree 内で実行している場合**（`main` が別の worktree でチェックアウトされている——サブエージェントの worktree 分離実行が典型。`git rev-parse --git-common-dir` が `.git` 以外を返すことで判定できる）→ `--delete-branch` を付けずに `gh pr merge <pr> --squash` でマージし、`gh pr view <pr> --json mergedAt` でマージ済みを確認してから `git push origin --delete <branch>` でリモートブランチを明示削除する。`git checkout main` は実行しない（別 worktree が使用中のため必ず失敗する）。ローカルブランチと worktree 自体の掃除は親セッション側に委ねる。
-12. **ローカルブランチを掃除する** — `git fetch --prune origin` → `git branch -vv` で upstream が `[origin/<branch>: gone]` のローカルブランチを探す → 対応するPRの `gh pr view <番号または対応するブランチ名> --json mergedAt --jq '.mergedAt'` に値が入っている（=マージ済み）ことを確認してから `git branch -D <branch>` で削除する。`git branch --merged origin/main` やコミット差分ベースのマージ済み判定は使わない（squashマージで誤判定する）。
-13. **報告する** — マージされたPR番号、`Closes #N` によりissueが自動クローズされたこと、新しい `main` のコミット、Copilotレビューの結果（あれば）、掃除したローカルブランチを述べる。
+12. **ワークフローファイルを変更した場合は実発火を確認する** — 手順8のPRの差分が `.github/workflows/*.yml` の新規追加、または既存ワークフローの `on:` トリガー変更を含む場合のみ実施する。変更後の `on:` が `pull_request`（またはこのPR自体のCIで確実に発火するイベント）を含まない（例: `push`専用・`schedule`・`workflow_dispatch`のみ）→ 手順9のCI greenはそのワークフローを一度も実行していない。マージ後、`gh run list --workflow=<ファイル名> -L 1` で該当runを取得し、`gh run watch <run-id> --exit-status` で完了を待つ。失敗していれば原因を調査し、新規issueを起票してから修正する——マージ済みの変更をそのまま「完了」として報告しない。
+13. **ローカルブランチを掃除する** — `git fetch --prune origin` → `git branch -vv` で upstream が `[origin/<branch>: gone]` のローカルブランチを探す → 対応するPRの `gh pr view <番号または対応するブランチ名> --json mergedAt --jq '.mergedAt'` に値が入っている（=マージ済み）ことを確認してから `git branch -D <branch>` で削除する。`git branch --merged origin/main` やコミット差分ベースのマージ済み判定は使わない（squashマージで誤判定する）。
+14. **報告する** — マージされたPR番号、`Closes #N` によりissueが自動クローズされたこと、新しい `main` のコミット、Copilotレビューの結果（あれば）、掃除したローカルブランチを述べる。手順12を実施した場合は、実発火確認の結果（成功/失敗、runへのリンク）も併せて述べる。
 
 ## 補足
 
