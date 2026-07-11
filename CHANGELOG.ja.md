@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- upu/ghost-align のローカル運用から `dev-flow` に2つのhookを移植: `block-main-commit`（`PreToolUse`/`Bash`）は `main` ブランチ上での `git commit` を、ラッパーコマンド（`env`/`sudo`/`command`）や複合コマンド（`&&`/`;`/`|`）越しも含めて拒否する。`compile-if-ts`（`PostToolUse`/`Edit|Write`）は `.ts` ファイル編集後に `npm run compile` を実行する。`compile-if-ts` は `package.json` が無い、または `scripts.compile` が定義されていないリポジトリでは何もしないため、本リポジトリのような非npmプロジェクトでもプラグインを安全に有効化できる。
+
 ## [0.1.0] - 2026-07-11
 
 ### Added
