@@ -48,7 +48,7 @@ argument-hint: "[<issue番号>]"
     | `1` | 引数エラー、`gh`/`git` 不在などローカル前提条件エラー | 原因を直して再実行する |
     | `2` | `TIMEOUT:`（提出されなかった） | その旨をユーザーに伝えたうえでマージに進んでよい（レビューは後から届くことがある） |
 
-    - `SUBMITTED:` の場合、本文（`gh pr view <pr> --json reviews`）とインラインコメント（`gh api repos/:owner/:repo/pulls/<pr>/comments --jq '.[] | select(.user.login=="Copilot") | {path,line,body}'`）を読み、判断する:
+    - `SUBMITTED:` の場合、`node "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-copilot-feedback.js" <pr>` を実行して本文とインラインコメントを1回で取得し（`{ summary, state, inlineComments: [{path, line, body}] }` のJSONを標準出力に返す。終了コード `1` かつ `NOT_FOUND:` は、レビューが直前のsha向けにまだ届いていないことを意味する——数秒待って再実行するか、手順9・10をやり直す）、その内容を読んで判断する:
       - 提案・nit・スタイルの指摘のみ、またはスコープ外・誤検知 → 内容をユーザーに一言報告し、返信（コード変更なし）してマージへ進む。必要なら別issueとしてフォローアップを提案する。
       - 実際のバグ・見落とし・スコープ内の問題 → push前に同種の観点でdiff全体を掃き、見つけた同類も直して1回のfixup pushに束ねる。手順6（ゲート）をやり直し、pushして手順9からやり直す。
     - fixup push後の再レビューは「タイムアウト内で来るかもしれない」として扱い、「必ず来る/来ない」と決め打ちしない。着弾したレビューの全指摘が「修正して返信」または「返信のみ」で解決されるまではマージへ進まない。
