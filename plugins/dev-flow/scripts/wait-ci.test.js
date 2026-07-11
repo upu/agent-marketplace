@@ -26,6 +26,14 @@ test("parseArgs rejects a non-numeric pr instead of letting it retry until timeo
   assert.throws(() => parseArgs(["-5"]), /<pr> must be a number/);
 });
 
+test("parseArgs rejects --interval-ms=0", () => {
+  assert.throws(() => parseArgs(["42", "--interval-ms=0"]), /--interval-ms must be a positive number/);
+});
+
+test("parseArgs rejects --timeout-ms=0", () => {
+  assert.throws(() => parseArgs(["42", "--timeout-ms=0"]), /--timeout-ms must be a positive number/);
+});
+
 test("parseArgs rejects unknown flags", () => {
   assert.throws(() => parseArgs(["42", "--nope"]), /Unknown argument/);
 });
