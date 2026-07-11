@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added two `dev-flow` hooks, ported from upu/ghost-align's local setup: `block-main-commit` (`PreToolUse`/`Bash`) denies `git commit` while on the `main` branch, including through wrapper commands (`env`/`sudo`/`command`) and compound commands (`&&`/`;`/`|`); `compile-if-ts` (`PostToolUse`/`Edit|Write`) runs `npm run compile` after editing a `.ts` file. `compile-if-ts` no-ops on repositories without a `package.json` or a `scripts.compile` entry, so enabling the plugin is safe on non-npm repositories such as this one.
+- Added a new `vscode-ext` plugin with a `test-and-package` skill, ported and generalized from upu/ghost-align's local skill: runs compile → test → a `check:package` content-allowlist gate, and only builds a `.vsix` when both pass. It's a separate plugin rather than a new branch in `dev-flow`, since `dev-flow` stays language/ecosystem-agnostic and this skill assumes a vsce-based npm project. Stops and reports if the target repository is missing the `compile`/`test`/`check:package`/`package` npm scripts it depends on.
 
 ## [0.1.0] - 2026-07-11
 
