@@ -35,6 +35,10 @@ Copilotの自動コードレビューはリポジトリ／PRごとの設定でON
 
 インラインコメント（`gh api .../pulls/<pr>/comments`）の投稿者は `user.login == "Copilot"`、レビュー本体（`gh pr view --json reviews`）の投稿者は `author.login == "copilot-pull-request-reviewer"` と、別フィールド・別名義になっている。どちらか一方の名義でもう一方をフィルタすると空になる。
 
+## 手順10: fetch-copilot-feedback.js の内部挙動
+
+以前はこの取得を「本文は `gh pr view --json reviews`、インラインコメントは手書き `--jq` 付きの `gh api .../comments`」という2つの生 `gh` 呼び出しに分けてプロースで説明していたが（agent-marketplace#59以前）、手書きjqは過去に事故の原因になったクラスの操作(agent-marketplace#7)だった。`fetch-copilot-feedback.js <pr> [sha]` はこの2回の呼び出しを1回のスクリプト実行にまとめ、`gh` の生JSONをNode側でパースして `{ summary, state, inlineComments: [{path, line, body}] }` を返す。`wait-copilot-review.js` へ `--dump` フラグを足す案（案1）ではなく独立スクリプト（案2）にしたのは、「待つ」と「読む」の責務を分け、`merge-pr.js`/`cleanup-merged-branches.js`/`wait-ci.js` と同じ一スクリプト一責務の構成に揃えるため。sha省略時は `wait-copilot-review.js` と同じく現HEADを使う——両スクリプトが同じcommitのレビューを見ていることを保証するため。
+
 ## 手順10: 指摘の修正を1回のfixup pushに束ねる理由
 
 fixup pushごとに再レビューが走り、新しい指摘が1件ずつ出る数珠つなぎの往復になる（実測でPRあたり3ラウンド）。これを避けるため、指摘を「その行だけの修正依頼」ではなく「このクラスの問題がdiffに存在するという信号」として扱い、push前に同種の観点でdiff全体を掃いて同類も直す。なお、fixup push後に再レビューが来るかは一貫しないことが実測で分かっている——「必ず来る/来ない」と決め打ちしないルールはこれによる。

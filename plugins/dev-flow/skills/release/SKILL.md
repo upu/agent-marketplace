@@ -45,7 +45,7 @@ CHANGELOG と package.json の version 情報を更新し、release workflow を
     | `1` | 引数エラー、`gh`/`git` 不在などローカル前提条件エラー | 原因を直して再実行する |
     | `2` | `TIMEOUT:`（タイムアウトまでに届かず） | 非同期で後から届くことがあるため、ユーザーに伝えたうえで手順11に進んでよい |
 
-    - `SUBMITTED:` の場合、概要（`gh pr view <pr> --json reviews`）とインライン指摘（`gh api repos/:owner/:repo/pulls/<pr>/comments --jq '.[] | select(.user.login=="Copilot") | {path,line,body}'`）を読み、判断する:
+    - `SUBMITTED:` の場合、`node "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-copilot-feedback.js" <pr>` を実行して概要とインライン指摘を1回で取得し（`{ summary, state, inlineComments: [{path, line, body}] }` のJSONを標準出力に返す。終了コード `1` かつ `NOT_FOUND:` は、レビューが直前のsha向けにまだ届いていないことを意味する）、その内容を読んで判断する:
       - 実行可能な指摘 → 同一ブランチに追コミットして push し、この手順を新しい HEAD sha で再実施する。
       - 誤検知・スコープ外 → コード変更せず理由を返信する。
     - fixup push 後の再レビューは「タイムアウト内で来るかもしれない」として扱い、「必ず来る/来ない」と決め打ちしない。手動での後押し（`gh api repos/:owner/:repo/pulls/<pr>/requested_reviewers -f 'reviewers[]=Copilot'` または `gh pr edit <pr> --add-reviewer Copilot`）は試してよいが依存しない。タイムアウトでその sha に新規レビューが無ければ、対応済み指摘へ「何を変えたか」を返信して手順11へ進む。
