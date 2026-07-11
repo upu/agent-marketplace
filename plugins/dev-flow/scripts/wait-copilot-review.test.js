@@ -38,6 +38,14 @@ test("parseArgs requires 1 or 2 positional arguments", () => {
   assert.throws(() => parseArgs(["1", "2", "3"]), /Usage:/);
 });
 
+test("parseArgs rejects --interval-ms=0", () => {
+  assert.throws(() => parseArgs(["42", "--interval-ms=0"]), /--interval-ms must be a positive number/);
+});
+
+test("parseArgs rejects --timeout-ms=0", () => {
+  assert.throws(() => parseArgs(["42", "--timeout-ms=0"]), /--timeout-ms must be a positive number/);
+});
+
 test("findSubmittedReview matches on author.login and commit.oid, ignoring inline-comment-style user.login", () => {
   const reviews = [
     { author: { login: "someone-else" }, commit: { oid: "sha1" }, state: "COMMENTED" },

@@ -43,6 +43,14 @@ function parseArgs(argv) {
     throw new Error(`<pr> must be a number (got: ${positional[0]})`);
   }
   args.pr = positional[0];
+  // `\d+` also matches "0", which would otherwise sleep for 0ms between
+  // polls (hammering the GitHub API) or time out before a single poll runs.
+  if (args.intervalMs <= 0) {
+    throw new Error(`--interval-ms must be a positive number (got: ${args.intervalMs})`);
+  }
+  if (args.timeoutMs <= 0) {
+    throw new Error(`--timeout-ms must be a positive number (got: ${args.timeoutMs})`);
+  }
   return args;
 }
 

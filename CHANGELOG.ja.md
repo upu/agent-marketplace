@@ -10,6 +10,10 @@
 ### Added
 
 - upu/ghost-align のローカル運用から `dev-flow` に2つのhookを移植: `block-main-commit`（`PreToolUse`/`Bash`）は `main` ブランチ上での `git commit` を、ラッパーコマンド（`env`/`sudo`/`command`）や複合コマンド（`&&`/`;`/`|`）越しも含めて拒否する。`compile-if-ts`（`PostToolUse`/`Edit|Write`）は `.ts` ファイル編集後に `npm run compile` を実行する。`compile-if-ts` は `package.json` が無い、または `scripts.compile` が定義されていないリポジトリでは何もしないため、本リポジトリのような非npmプロジェクトでもプラグインを安全に有効化できる。
+
+### Fixed
+
+- `wait-ci.js`・`wait-copilot-review.js` が `--interval-ms=0`・`--timeout-ms=0` を弾くようになった。従来はsleep無しでポーリングし続けGitHub APIを叩き続けたり、1回もポーリングせずに即タイムアウト扱いになっていた。
 - upu/ghost-align のローカルスキルを汎用化して移植した `test-and-package` スキルを含む新規プラグイン `vscode-ext` を追加。compile → test → `check:package` によるパッケージ内容allowlist検証のゲートを通り、両方green のときだけ `.vsix` をビルドする。`dev-flow` は言語・エコシステム非依存のスキル集として維持する方針のため、vsce前提のこのスキルは `dev-flow` に分岐を増やさず別プラグインとした。対象リポジトリに前提の `compile`/`test`/`check:package`/`package` npm scriptsが無い場合はその旨を報告して中断する。
 
 ## [0.1.0] - 2026-07-11
