@@ -28,11 +28,7 @@ argument-hint: "[リリース済みバージョン。例: 0.1.0]"
 
 ## 手順
 
-1. **実際に起きたことを再構成する** — 記憶ではなく証拠に基づく。リリースされたバージョンについて以下を集める:
-   - CHANGELOGの `x.y.z` セクション（CHANGELOG未採用のリポジトリではリリースノートやマージ済みPR一覧で代替）。
-   - マイルストーンのissue: `gh issue list --milestone "vX.Y.Z" --state all --limit 200 --json number,title,labels,state`。計画されていたもの／途中で追加されたもの／外へ先送りされたものを区別する。
-   - 前リリースからの変更範囲: 前のタグを見つけ（`git tag --sort=-creatordate` → このバージョンの1つ前）、`git log <前のタグ>..vX.Y.Z --oneline`（どちらも`v`付きのタグ名）とマージ済みPR（`gh pr list --state merged --base main --limit 200 --search "merged:>=<前リリース日>"`）を読む。
-   - 摩擦のシグナル: CI再実行・失敗（`gh run list`）、greenになるまで複数pushを要したPR、途中でスコープが膨らんだPR。
+1. **実際に起きたことを再構成する** — 記憶ではなく証拠に基づく。`node "${CLAUDE_PLUGIN_ROOT}/scripts/release-evidence.js" <バージョン（`v`無し。例: 0.4.0）>` を実行し、CHANGELOGの該当バージョン節・マイルストーンissue一覧（番号・タイトル・ラベル・状態）・前タグから対象タグまでのコミットログ・同期間にマージされたPR一覧・同期間のCI再実行/失敗履歴（`gh run list`ベース）を1回のJSON呼び出しでまとめて取得する。CHANGELOG未採用のリポジトリでは `changelog` が `null` になるだけで他のフィールドは通常通り得られる（リリースノートやマージ済みPR一覧で代替）。`milestoneIssues` から計画されていたもの／途中で追加されたもの／外へ先送りされたものを区別する。`ciHistory` と、greenになるまで複数pushを要したPR・途中でスコープが膨らんだPRから摩擦のシグナルを読み取る。
    - Claude Codeの利用データ: ユーザーに `/insights` の実行と結果の共有を依頼する（`/insights` はREPL専用でClaude自身やBashからは実行できない）。ベストエフォートでよく、ユーザーがスキップしたらそのまま進める。
 2. **まず自分の観察を用意する** — ユーザーが求めているのは、単なるファシリテーションではなく*Claudeが*気づいたこと。議論の前に、このリリース固有の論点を用意する（一般的なアドバイスではなく、それぞれ手順1の実イベントに紐付ける）:
    - **Keep**: うまくいったので仕組みに落とす価値があること。
