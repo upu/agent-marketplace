@@ -74,18 +74,29 @@ test("latestReleaseSection returns null when there is no released version yet", 
   assert.equal(latestReleaseSection("## [Unreleased]\n"), null);
 });
 
-test("tagExists is true only when git tag -l echoes back the exact tag", () => {
+test("tagExists is true when git ls-remote lists a matching refs/tags/<tag> line", () => {
   const exec = (cmd, args) => {
     assert.equal(cmd, "git");
-    assert.deepEqual(args, ["tag", "-l", "v0.1.0"]);
-    return "v0.1.0\n";
+    assert.deepEqual(args, ["ls-remote", "--tags", "origin"]);
+    return "abc123\trefs/tags/v0.1.0\n";
   };
   assert.equal(tagExists("v0.1.0", exec), true);
 });
 
-test("tagExists is false when git tag -l prints nothing", () => {
+test("tagExists is false when git ls-remote prints nothing", () => {
   const exec = () => "\n";
   assert.equal(tagExists("v0.1.0", exec), false);
+});
+
+test("tagExists does not match a tag whose name only starts with the target (e.g. v0.1.0 vs v0.1.0-rc1)", () => {
+  const exec = () => "abc123\trefs/tags/v0.1.0-rc1\n";
+  assert.equal(tagExists("v0.1.0", exec), false);
+});
+
+test("tagExists finds the matching tag among several remote tags", () => {
+  const exec = () =>
+    ["abc111\trefs/tags/v0.1.0", "abc222\trefs/tags/v0.2.0", "abc333\trefs/tags/v0.1.0-rc1"].join("\n") + "\n";
+  assert.equal(tagExists("v0.2.0", exec), true);
 });
 
 test("findOpenMilestone flattens paginated gh api output and matches by title", () => {

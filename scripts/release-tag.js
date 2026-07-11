@@ -77,10 +77,19 @@ function runGh(args, exec) {
   }
 }
 
-/** Whether the local git repo already has a tag named `tag`. */
+/**
+ * Whether `origin` already has a tag named `tag`, checked against the remote
+ * directly (`git ls-remote`) rather than the local checkout: a fresh
+ * `actions/checkout` clone doesn't necessarily fetch tags that already exist
+ * on the remote, so a local `git tag -l` can miss a tag another run just
+ * pushed and cause a duplicate `git push` that the remote then rejects.
+ */
 function tagExists(tag, exec) {
-  const out = exec("git", ["tag", "-l", tag], { encoding: "utf8" }).trim();
-  return out === tag;
+  const out = exec("git", ["ls-remote", "--tags", "origin"], { encoding: "utf8" }).trim();
+  if (!out) {
+    return false;
+  }
+  return out.split("\n").some((line) => line.split("\t")[1] === `refs/tags/${tag}`);
 }
 
 /**
