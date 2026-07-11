@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added two `dev-flow` hooks, ported from upu/ghost-align's local setup: `block-main-commit` (`PreToolUse`/`Bash`) denies `git commit` while on the `main` branch, including through wrapper commands (`env`/`sudo`/`command`) and compound commands (`&&`/`;`/`|`); `compile-if-ts` (`PostToolUse`/`Edit|Write`) runs `npm run compile` after editing a `.ts` file. `compile-if-ts` no-ops on repositories without a `package.json` or a `scripts.compile` entry, so enabling the plugin is safe on non-npm repositories such as this one.
+
 ## [0.1.0] - 2026-07-11
 
 ### Added
