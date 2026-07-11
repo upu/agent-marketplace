@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `ship` now verifies, after merging a PR that adds or changes a `.github/workflows/*.yml` trigger not covered by `pull_request`, that the workflow's real first run (e.g. on a `push`-only trigger) actually succeeds — a PR's own CI never exercises such a workflow, so it could previously be reported as done while still untested in production.
+
 ## [0.2.0] - 2026-07-11
 
 ### Added
