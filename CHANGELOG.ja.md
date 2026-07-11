@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `ship`/`release` のPRマージを、`gh pr merge --delete-branch` の分岐をプロースで説明する方式から、新しい `merge-pr.js` スクリプト呼び出しに変更した。スクリプト自身が現在の作業ツリーが linked worktree か（`git rev-parse --git-common-dir` が `.git` 以外を返すか）を判定し、通常ツリーなら `--delete-branch` 付きでマージ、worktree なら `--delete-branch` なしでマージ後 `mergedAt` を確認してから `git push origin --delete <branch>` でリモートブランチを明示削除する（`git checkout main` は実行しない——worktree では必ず失敗するため）。worktree分離実行したサブエージェントが繰り返しこの分岐を読み飛ばし `--delete-branch` を誤用して手動リカバリが必要になっていた事故の再発を防ぐ。
+
 ## [0.3.0] - 2026-07-11
 
 ### Changed
