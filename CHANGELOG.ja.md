@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-11
+
 ### Changed
 
 - `ship` が、`pull_request` でカバーされないトリガーを持つ `.github/workflows/*.yml` を新設・変更したPRをマージした後、そのワークフローの実際の初回実行（`push`専用トリガー等）が成功することを確認するようになった。PR自体のCIではそのワークフローが一度も実行されないため、従来は実運用未検証のまま完了報告されうる状態だった。
@@ -41,6 +43,7 @@
 - README に、スキル更新を取り込むための `/plugin marketplace update upu-agent-marketplace` の実行手順を明文化。
 - README のスキル執筆規約を拡張: SKILL.md 本文は「短い命令文＋構造化された分岐（箇条書き・表）」で書き、why・実測談は各スキルの `reference.md` に分離して本文から一行で誘導する方針を明文化。
 
-[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.3.0
 [0.2.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.2.0
 [0.1.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.1.0
