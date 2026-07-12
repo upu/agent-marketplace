@@ -25,7 +25,7 @@ argument-hint: "[<マイルストーン名> または <issue番号列 例: 3 5 8
    - `dev-flow:ship` スキルで issue <番号> をshipすること。
    - 「他のサブエージェントが同時に別issueをshipしている。PRが `mergeable: CONFLICTING` になったら最新の `origin/main` にrebaseして解決し、force-pushして続行する」という一文。
    - 完了時に報告すべき内容（PR番号・マージ結果・Copilotレビュー対応・残課題）。
-5. **波の完了を確認してから次の波へ** — 全エージェントの完了通知を待ち、報告を鵜呑みにせず `gh issue list --milestone "<title>" --state all --limit 200` / `gh pr list --state merged --limit 200` で実際の完了状況（issueクローズ・PRマージ済みか）を確認する。失敗・未完了のissueがあれば、次の波に回すか個別にリカバリしてから、手順4に戻って次の波を起動する。
+5. **波の完了を確認してから次の波へ** — 全エージェントの完了通知を待ち、報告を鵜呑みにせず `node "${CLAUDE_PLUGIN_ROOT}/scripts/wave-status.js" --milestone="<title>"`（または対象issue番号を直接列挙: `wave-status.js <issue番号...>`）を実行する。issueごとの `{ number, state, linkedPr, prMerged }` が突き合わせ済みで返るので、生JSON同士を自分で突き合わせる必要はない（判断材料であり、`state=CLOSED` かつ `prMerged=true` でないものは未完了として扱う）。失敗・未完了のissueがあれば、次の波に回すか個別にリカバリしてから、手順4に戻って次の波を起動する。
 6. **停止からの再開** — セッション上限などでサブエージェントが停止した場合、"stopped"（completedではない）で通知されるか、**通知自体が来ないことがある**。再開時はまず `gh pr list` / `git worktree list` / 対象ブランチのコミット有無で実際の進捗を確認し、実際に進んでいた分はそのエージェントに追加メッセージを送って再開し（環境にそのためのツールがあれば使う。例: `SendMessage`）、進んでいなかった分だけ新規に仕切り直す（全部を機械的に作り直さない）。
 7. **報告する** — マージされたPRの一覧（issue番号との対応）、波ごとの実行結果、リカバリした・持ち越したissue、残ったworktree/ローカルブランチの掃除状況を述べる。マイルストーンの全issueがクローズしたら、リリースは `release` スキルに引き継ぐ。
 

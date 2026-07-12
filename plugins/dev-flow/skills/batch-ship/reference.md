@@ -8,9 +8,13 @@
 - **並列は3〜4件の波に区切る** — セッション上限はアカウント単位の共有リソースであり、全件一斉起動すると上限到達時に全エージェントが同時に停止し、進行中の作業がまとめて失われる（実測: 8並列で全滅しコミットゼロでやり直しになった事例がある）。波に区切れば全滅しても被害は1波分に限定される。
 - **4件以下なら親で直列 `ship`** — 並列worktreeのセットアップとサブエージェントのコールドスタートは小タスクには過剰。
 
-## 手順1・5: `--state all` と `--limit` を明示する理由
+## 手順1: `--state all` と `--limit` を明示する理由
 
 `gh issue list` / `gh pr list` はデフォルトでopenのみ・件数上限で切られるため、明示しないとクローズ済みの検出や全件取得ができず、未完了があるのに完了に見えることがある。
+
+## 手順5: `wave-status.js` が `closedByPullRequestsReferences` を使う理由
+
+issueごとの完了確認は元々 `gh issue list --milestone ... --state all` と `gh pr list --state merged --limit 200` を別々に実行し、両方の生JSONをモデルが突き合わせていた。issue数が多いマイルストーンではこの突き合わせ自体が負荷になる（agent-marketplace#61）。`gh issue view`/`gh issue list` の `closedByPullRequestsReferences` フィールドは issue 単位で「どのPRがこのissueをクローズしたか」を返し、`gh issue list --json closedByPullRequestsReferences` で milestone 一括取得にも使えることを gh 2.86.0 で確認済み（このリポジトリの v0.4.0 波でも実測）。ただしこのフィールドは「リンクされている」ことしか示さず、実際にマージ済みかは別途 `gh pr view <pr> --json state` で確認する必要がある。
 
 ## 手順2: 自己変更系issueで先に明示許可を取る理由
 
