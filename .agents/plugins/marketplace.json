@@ -1,0 +1,16 @@
+{
+  "name": "upu-agent-marketplace",
+  "owner": {
+    "name": "upu"
+  },
+  "plugins": [
+    {
+      "name": "dev-flow",
+      "source": "./plugins/dev-flow"
+    },
+    {
+      "name": "vscode-ext",
+      "source": "./plugins/vscode-ext"
+    }
+  ]
+}

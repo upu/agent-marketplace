@@ -1,0 +1,8 @@
+{
+  "name": "vscode-ext",
+  "version": "0.1.0",
+  "description": "VS Code拡張開発向けスキル集",
+  "author": {
+    "name": "upu"
+  }
+}

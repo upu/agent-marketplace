@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Codex CLI support: each plugin now ships a `.codex-plugin/plugin.json` and the repository root a `.agents/plugins/marketplace.json`, mirroring the Claude Code manifests (name/version/plugin list kept in sync, verified by tests), so `codex plugin marketplace add upu/agent-marketplace` can install the same plugins. README documents the Codex install steps.
+
 ## [0.4.0] - 2026-07-15
 
 ### Changed
