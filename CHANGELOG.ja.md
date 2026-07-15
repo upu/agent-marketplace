@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-15
+
 ### Changed
 
 - `ship`/`release` のPRマージを、`gh pr merge --delete-branch` の分岐をプロースで説明する方式から、新しい `merge-pr.js` スクリプト呼び出しに変更した。スクリプト自身が現在の作業ツリーが linked worktree か（`git rev-parse --git-common-dir` が `.git` 以外を返すか）を判定し、通常ツリーなら `--delete-branch` 付きでマージ、worktree なら `--delete-branch` なしでマージ後 `mergedAt` を確認してから `git push origin --delete <branch>` でリモートブランチを明示削除する（`git checkout main` は実行しない——worktree では必ず失敗するため）。worktree分離実行したサブエージェントが繰り返しこの分岐を読み飛ばし `--delete-branch` を誤用して手動リカバリが必要になっていた事故の再発を防ぐ。
@@ -52,7 +54,8 @@
 - README に、スキル更新を取り込むための `/plugin marketplace update upu-agent-marketplace` の実行手順を明文化。
 - README のスキル執筆規約を拡張: SKILL.md 本文は「短い命令文＋構造化された分岐（箇条書き・表）」で書き、why・実測談は各スキルの `reference.md` に分離して本文から一行で誘導する方針を明文化。
 
-[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.4.0
 [0.3.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.3.0
 [0.2.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.2.0
 [0.1.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.1.0

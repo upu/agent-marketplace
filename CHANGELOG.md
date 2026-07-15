@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-15
+
 ### Changed
 
 - `ship` and `release` now merge PRs via a new `merge-pr.js` script instead of an inline prose branch on `gh pr merge --delete-branch`. The script itself detects whether the current tree is a linked worktree (`git rev-parse --git-common-dir` returning something other than `.git`) and merges accordingly: `--delete-branch` on a normal tree, or a plain squash merge followed by a `mergedAt` check and an explicit `git push origin --delete <branch>` on a worktree (never `git checkout main`, which always fails there). This replaces prose that sub-agents running in worktree isolation repeatedly misread, misapplying `--delete-branch` and requiring manual recovery.
@@ -52,7 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented in the README how to pull in skill updates via `/plugin marketplace update upu-agent-marketplace`.
 - Extended the README's skill-writing conventions: SKILL.md bodies use short imperatives with structured branching (bullets/tables), and whys / field notes live in each skill's `reference.md`, referenced from the body by a single line.
 
-[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.4.0
 [0.3.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.3.0
 [0.2.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.2.0
 [0.1.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.1.0
