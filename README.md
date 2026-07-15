@@ -39,6 +39,21 @@ Claude Code 上で以下を実行してください。
 `vscode-ext` は VS Code 拡張開発リポジトリ（ghost-align、Totonoe-Log など）向けで、テスト→パッケージ内容の allowlist 検証→green のときだけ `.vsix` をビルドするゲート付き手順 `test-and-package` スキルを含みます（`/plugin install vscode-ext` で個別に導入）。
 実運用スキルは今後も随時追加予定です。
 
+### Codex CLI から使う
+
+Codex CLI 向けには、Claude Code 向けマニフェストと並行して、各プラグインの `.codex-plugin/plugin.json` と
+リポジトリルートの `.agents/plugins/marketplace.json` を提供しています（name/version/プラグイン一覧は
+`.claude-plugin` 側と同一内容で管理し、テストで同期を検証しています）。Codex CLI 上で以下を実行してください。
+
+```
+codex plugin marketplace add upu/agent-marketplace
+codex plugin install dev-flow
+```
+
+`skills/` 配下のスキル本文と `scripts/` 配下の Node.js スクリプトは Claude Code 版と共通です。
+Codex の拡張機構は変化が速いため、動作しない場合は最新の一次情報
+（[Build skills](https://learn.chatgpt.com/docs/build-skills) / [Build plugins](https://learn.chatgpt.com/docs/build-plugins)）を確認してください。
+
 ## 更新方法
 
 `/plugin marketplace add upu/agent-marketplace` でマーケットプレイスを追加すると、Claude Code はプラグインの内容をローカルにキャッシュします。

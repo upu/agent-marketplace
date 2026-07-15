@@ -52,6 +52,54 @@ function validatePluginJson(raw) {
   return { violations, version: parsed.version || null };
 }
 
+/** Violations where a Codex plugin.json's name/version differ from its Claude counterpart. */
+function pluginManifestSyncViolations(claudeRaw, codexRaw) {
+  let claude;
+  let codex;
+  try {
+    claude = JSON.parse(claudeRaw);
+  } catch (err) {
+    return [`Claude plugin.json is not valid JSON: ${err.message}`];
+  }
+  try {
+    codex = JSON.parse(codexRaw);
+  } catch (err) {
+    return [`Codex plugin.json is not valid JSON: ${err.message}`];
+  }
+  const violations = [];
+  if (claude.name !== codex.name) {
+    violations.push(`"name" differs (Claude: ${claude.name}, Codex: ${codex.name})`);
+  }
+  if (claude.version !== codex.version) {
+    violations.push(`"version" differs (Claude: ${claude.version}, Codex: ${codex.version})`);
+  }
+  return violations;
+}
+
+/** Violations where two marketplace.json files list different plugins (name/source pairs, in order). */
+function marketplaceSyncViolations(claudeRaw, codexRaw) {
+  let claude;
+  let codex;
+  try {
+    claude = JSON.parse(claudeRaw);
+  } catch (err) {
+    return [`Claude marketplace.json is not valid JSON: ${err.message}`];
+  }
+  try {
+    codex = JSON.parse(codexRaw);
+  } catch (err) {
+    return [`Codex marketplace.json is not valid JSON: ${err.message}`];
+  }
+  const pluginList = (parsed) =>
+    JSON.stringify((Array.isArray(parsed.plugins) ? parsed.plugins : []).map((p) => ({ name: p.name, source: p.source })));
+  const claudeList = pluginList(claude);
+  const codexList = pluginList(codex);
+  if (claudeList !== codexList) {
+    return [`plugin lists differ (Claude: ${claudeList}, Codex: ${codexList})`];
+  }
+  return [];
+}
+
 /** Whether CHANGELOG's [Unreleased] section (up to the next "## [" heading) has any real entries. */
 function isUnreleasedEmpty(changelogText) {
   const lines = changelogText.replace(/\r\n/g, "\n").split("\n");
@@ -135,6 +183,54 @@ test("validatePluginJson flags invalid JSON", () => {
   assert.match(result.violations[0], /not valid JSON/);
 });
 
+test("pluginManifestSyncViolations passes when name and version match", () => {
+  const claude = JSON.stringify({ name: "dev-flow", version: "0.4.0" });
+  const codex = JSON.stringify({ name: "dev-flow", version: "0.4.0" });
+  assert.deepEqual(pluginManifestSyncViolations(claude, codex), []);
+});
+
+test("pluginManifestSyncViolations flags a version mismatch", () => {
+  const claude = JSON.stringify({ name: "dev-flow", version: "0.4.0" });
+  const codex = JSON.stringify({ name: "dev-flow", version: "0.3.0" });
+  const violations = pluginManifestSyncViolations(claude, codex);
+  assert.equal(violations.length, 1);
+  assert.match(violations[0], /"version" differs/);
+});
+
+test("pluginManifestSyncViolations flags a name mismatch", () => {
+  const claude = JSON.stringify({ name: "dev-flow", version: "0.4.0" });
+  const codex = JSON.stringify({ name: "dev-flo", version: "0.4.0" });
+  const violations = pluginManifestSyncViolations(claude, codex);
+  assert.equal(violations.length, 1);
+  assert.match(violations[0], /"name" differs/);
+});
+
+test("pluginManifestSyncViolations flags invalid JSON on either side", () => {
+  const valid = JSON.stringify({ name: "dev-flow", version: "0.4.0" });
+  assert.match(pluginManifestSyncViolations("{ not json", valid)[0], /Claude plugin\.json is not valid JSON/);
+  assert.match(pluginManifestSyncViolations(valid, "{ not json")[0], /Codex plugin\.json is not valid JSON/);
+});
+
+test("marketplaceSyncViolations passes when both list the same plugins", () => {
+  const claude = JSON.stringify({ name: "a", plugins: [{ name: "foo", source: "./plugins/foo" }] });
+  const codex = JSON.stringify({ name: "b", plugins: [{ name: "foo", source: "./plugins/foo" }] });
+  assert.deepEqual(marketplaceSyncViolations(claude, codex), []);
+});
+
+test("marketplaceSyncViolations flags differing plugin lists", () => {
+  const claude = JSON.stringify({ plugins: [{ name: "foo", source: "./plugins/foo" }] });
+  const codex = JSON.stringify({ plugins: [{ name: "foo", source: "./plugins/bar" }] });
+  const violations = marketplaceSyncViolations(claude, codex);
+  assert.equal(violations.length, 1);
+  assert.match(violations[0], /plugin lists differ/);
+});
+
+test("marketplaceSyncViolations flags invalid JSON on either side", () => {
+  const valid = JSON.stringify({ plugins: [] });
+  assert.match(marketplaceSyncViolations("{ not json", valid)[0], /Claude marketplace\.json is not valid JSON/);
+  assert.match(marketplaceSyncViolations(valid, "{ not json")[0], /Codex marketplace\.json is not valid JSON/);
+});
+
 test("isUnreleasedEmpty is true when [Unreleased] has no entries", () => {
   assert.equal(isUnreleasedEmpty("## [Unreleased]\n\n## [0.1.0] - 2026-07-11\n"), true);
 });
@@ -161,6 +257,30 @@ test("marketplace.json in this repository is valid and every plugin source exist
   const raw = fs.readFileSync(path.join(REPO_ROOT, ".claude-plugin", "marketplace.json"), "utf8");
   assert.deepEqual(validateMarketplace(raw, REPO_ROOT), []);
 });
+
+test("Codex marketplace.json exists, is valid, and lists the same plugins as the Claude one", () => {
+  const codexRaw = fs.readFileSync(path.join(REPO_ROOT, ".agents", "plugins", "marketplace.json"), "utf8");
+  assert.deepEqual(validateMarketplace(codexRaw, REPO_ROOT), []);
+
+  const claudeRaw = fs.readFileSync(path.join(REPO_ROOT, ".claude-plugin", "marketplace.json"), "utf8");
+  assert.deepEqual(marketplaceSyncViolations(claudeRaw, codexRaw), []);
+});
+
+for (const pluginName of ["dev-flow", "vscode-ext"]) {
+  test(`${pluginName}'s Codex plugin.json exists, is valid, and is in sync with the Claude one`, () => {
+    const codexRaw = fs.readFileSync(
+      path.join(REPO_ROOT, "plugins", pluginName, ".codex-plugin", "plugin.json"),
+      "utf8"
+    );
+    assert.deepEqual(validatePluginJson(codexRaw).violations, []);
+
+    const claudeRaw = fs.readFileSync(
+      path.join(REPO_ROOT, "plugins", pluginName, ".claude-plugin", "plugin.json"),
+      "utf8"
+    );
+    assert.deepEqual(pluginManifestSyncViolations(claudeRaw, codexRaw), []);
+  });
+}
 
 test("dev-flow's plugin.json is valid and its version is in sync with CHANGELOG.md", () => {
   const pluginJsonPath = path.join(REPO_ROOT, "plugins", "dev-flow", ".claude-plugin", "plugin.json");

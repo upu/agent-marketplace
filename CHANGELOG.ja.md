@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Codex CLI対応: 各プラグインに `.codex-plugin/plugin.json` を、リポジトリルートに `.agents/plugins/marketplace.json` を追加した。Claude Code向けマニフェストと同一内容（name/version/プラグイン一覧の同期をテストで検証）で管理し、`codex plugin marketplace add upu/agent-marketplace` で同じプラグインを導入できるようにする。READMEにCodex導入手順を追記。
+
 ## [0.4.0] - 2026-07-15
 
 ### Changed
