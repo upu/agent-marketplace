@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-18
+
 ### Changed
 
 - `batch-ship` 手順5（波の完了確認をしてから次の波へ進む判断）が、issueのマージが確認できた時点でその波が使ったworktreeを新しい `cleanup-worktrees.js` スクリプトで明示的に削除するようになった。従来の手順7は残ったworktreeを最終報告で「述べる」だけだった。`Agent` ツールの `isolation: "worktree"` はサブエージェントが変更を加えなかった場合のみ自動クリーンアップされ、`ship` は必ずコミットするため、波を起動するたびにworktreeディレクトリが際限なく残っていた。スクリプトはオーケストレーターが各 `Agent` 呼び出しの結果からパスを手で追跡する方式ではなく、マージ確認済みissueのPRのheadブランチ（`gh pr view --json headRefName`）を `git worktree list --porcelain` の構造的な状態と突き合わせる方式を採る。削除失敗（worktreeがロックされたまま・未追跡ファイルが残っているなど）はログに残してスキップするのみで、強制削除やエラー停止はしない——1件の削除失敗が波全体の掃除を止めない。手順7の報告内容も、掃除の状況を述べるだけでなく、実際に行った掃除の結果を報告する内容に更新した。
@@ -76,7 +78,8 @@
 - README に、スキル更新を取り込むための `/plugin marketplace update upu-agent-marketplace` の実行手順を明文化。
 - README のスキル執筆規約を拡張: SKILL.md 本文は「短い命令文＋構造化された分岐（箇条書き・表）」で書き、why・実測談は各スキルの `reference.md` に分離して本文から一行で誘導する方針を明文化。
 
-[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.6.0
 [0.5.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.5.0
 [0.4.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.4.0
 [0.3.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.3.0
