@@ -35,7 +35,16 @@ CHANGELOG と package.json の version 情報を更新し、release workflow を
 6. **テスト（ゲート）** — `npm run compile`、`npm test`、`npm run check:package` を実行。すべて成功必須。失敗状態では PR を作成しない。
 7. **コミット** — 意図した差分だけが staged されていることを確認し（`git status` / `git diff`）、リポジトリ流儀の日本語要約でコミットする（例: `release: vx.y.z`）。
 8. **Push & PR 作成** — `git push -u origin release/v<x.y.z>` 後、`gh pr create --base main`。PR 本文は `--body-file` で渡す。リリース PR は常に non-draft で作成する。
-9. **CI 待機** — `set -o pipefail; gh pr checks <pr> --watch --fail-fast 2>&1 | tail -5` を単発のフォアグラウンド呼び出しとして実行する（長めタイムアウト例: 600000 ms）。バックグラウンド実行して後のターンで継ぎ足す運用はしない。赤があれば修正して再 push。
+9. **CI 待機** — `node "${CLAUDE_PLUGIN_ROOT}/scripts/wait-ci.js" <pr>` を単発のフォアグラウンド呼び出しとして実行する（`<pr>` は手順8のPR番号。デフォルト20秒間隔・20分タイムアウト、`--interval-ms=` `--timeout-ms=` で調整可）。バックグラウンド実行して後のターンで継ぎ足す運用はしない。状態が変化するたびに1行出力する。終了コードで判定する:
+
+    | 終了コード | 意味 | 次の行動 |
+    | --- | --- | --- |
+    | `0` | 全チェック通過、または `NO_CHECKS:`（このリポジトリにCI設定が無い） | 手順10へ |
+    | `1` | `FAILED:`（チェック失敗）、引数エラー、`gh` 不在 | 失敗ログを確認して修正 → push → 手順9をやり直す |
+    | `2` | `TIMEOUT:` | 状況を確認し、`--timeout-ms=` を延ばして再実行するかユーザーに報告する |
+    | `3` | `CONFLICTING:`（PRがベースブランチにマージ不可） | 最新の `origin/main` にrebaseして解消し、force-pushして手順9をやり直す |
+
+    - `wait-ci.js` はポーリングループの中で `mergeable` 状態の確認も自動的に行う——特定のチェックが同じPENDINGメッセージのまま複数回変化しない場合、またはタイムアウト直前になった場合に `gh pr view <pr> --json mergeable` を内部で確認し、`CONFLICTING` なら `CONFLICTING:` ログ行とともに終了コード `3` で終了する（rebase自体は自動化しない）。
 10. **（要求された場合）Copilot レビュー待機** — 同梱の `node "${CLAUDE_PLUGIN_ROOT}/scripts/wait-copilot-review.js" <pr>` を実行する（sha 省略時は現 HEAD を自動使用。デフォルト 25 秒間隔・15 分タイムアウト、`--interval-ms=` `--timeout-ms=` で調整可）。単発フォアグラウンド呼び出し、または Bash が使える環境では Monitor ツールでの背景監視でよい（`timeout_ms` はスクリプトの `--timeout-ms` より少し長め）。終了コードで判定する:
 
     | 終了コード | 意味 | 次の行動 |
@@ -66,4 +75,4 @@ CHANGELOG と package.json の version 情報を更新し、release workflow を
 - 1 PR = 1 リリース。リリース PR の内容は `prepare-release.js` による CHANGELOG 確定と version bump のみに限定し、無関係な変更を混ぜない。
 - リリースコミット自体はユーザー向け変更ではないため、新規 `[Unreleased]` エントリは追加しない。
 - `vx.y.z` タグは workflow 内の `gh release create` で生成され、手動 push しない。公開済み GitHub Release に紐づく既存タグを force 更新しない。公開後の誤りは新しい patch バージョンで取り直す。
-- CI 待機（手順9）・マージ（手順11）・リリース検証（手順12）は、各ステップを単発フォアグラウンド呼び出しで構成する（`gh pr checks --watch`、`merge-pr.js`、`gh run watch`）。後続ターンで再開前提の fire-and-forget を使わない。
+- CI 待機（手順9）・マージ（手順11）・リリース検証（手順12）は、各ステップを単発フォアグラウンド呼び出しで構成する（`wait-ci.js`、`merge-pr.js`、`gh run watch`）。後続ターンで再開前提の fire-and-forget を使わない。
