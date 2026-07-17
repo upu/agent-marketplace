@@ -35,3 +35,11 @@ CHANGELOGの `[Unreleased]` の同じ見出し（`### Added` 等）に複数エ�
 ## 手順5・補足: 完了確認をリモートの実状態で行う理由
 
 サブエージェントの最終報告は「マージまで完了した」ように読めても、実際にはCI待ちやマージ前で停止していることがある。
+
+## 手順5: 波完了後にworktreeを明示的に削除する理由（agent-marketplace#78）
+
+- `Agent` ツールの `isolation: "worktree"` は、エージェントが変更を加えなかった場合のみ自動クリーンアップされる。`ship` は必ずコミットする（＝必ず変更あり）ため、`batch-ship` が波を起動するたびに使われたworktreeディレクトリが必ず残り、削除は呼び出し元（`batch-ship`）の責任として設計上残っていた。
+- `ship` 側の `merge-pr.js` はリモート/ローカルブランチの削除は行うが、worktreeディレクトリ自体は意図的に触らない——別worktreeが使用中のため `git checkout main` を含む操作ができない（agent-marketplace#56）。worktree自体を消せるのは、そのworktreeが使用中でなくなった後（＝波の完了後）に外側から動く `batch-ship` だけ。
+- 削除方法は2案あった: (1) 各 `Agent` 呼び出し結果に含まれるworktreeパスをオーケストレーターが記録し、`git worktree remove <path>` を個別実行する、(2) 波完了後に `git worktree list --porcelain` を見て、issueの（マージ済みPRの）ブランチに一致するworktreeを削除する。(1) はオーケストレーター（モデル）がサブエージェントの自由形式の結果テキストから正しくパスを読み取り保持し続けることに依存する——`wave-status.js`/`cleanup-merged-branches.js` が既に避けている「モデルが生値を手で転記する」失敗モードと同じクラスであるため、(2) を選んだ（`cleanup-worktrees.js`）。git自身の構造的事実（`git worktree list --porcelain` の `branch` 行）と、`wave-status.js` と同じマージ確認ロジック（`resolveLinkedPr`/`fetchPrMerged`）で得た「そのissueのPRのマージ済みheadRefName」を突き合わせるため、"どの波でどのAgent呼び出しがどのパスを返したか" という一時的な状態を一切保持しない。
+- マージ未確認のissue（進行中・手順6のリカバリ待ち）のworktreeは削除候補にすら入らない——`prMerged=true` のissueだけが対象になるため、波が部分的にしか終わっていなくても進行中の作業を消すリスクがない。
+- 削除失敗時に `--force` を使わない理由: issueの設計メモが指摘する通り、強制削除は正常終了しなかった波の作業を握りつぶすリスクがある。`cleanup-worktrees.js` は「locked」（`Agent` ツールのworktree分離が付与するロック）だけは `git worktree unlock` してから通常削除を再試行するが、それ以外の失敗（未コミット/未追跡ファイルが残っているなど）は `--force` せずログに残して次のissueへ進む——`git branch -D` を無条件に使わない `cleanup-merged-branches.js` と同じ「確認できないものは触らない」方針。
