@@ -23,6 +23,12 @@
 
 引き継ぎに独自フォーマットを発明せず、物語・順序はマイルストーンの `description`、親子関係はネイティブの sub-issues、単純な順序依存は自動リンクされる `前提: #N` に載せておけば、将来のどのセッション・スキルでも、マイルストーンと issue を読むだけでユーザーに聞き直さずに計画を再構築できる。
 
+## 手順7: sub-issue紐付けに `gh api .../sub_issues` しか使えない理由
+
+`gh issue edit --add-sub-issue` / `--parent` はドキュメント上の想定に反して存在しないフラグ（`gh version 2.86.0` の `gh issue edit --help` で確認済み。実際のフラグは `--add-assignee` / `--add-label` / `--add-project` / `-b` / `-F` / `-m` / `--remove-assignee` / `--remove-label` / `--remove-milestone` / `--remove-project` / `-t` のみ）。そのため `gh api repos/:owner/:repo/issues/<親>/sub_issues -F sub_issue_id=<子のid>` が唯一動く手段になる。
+
+このAPIの `sub_issue_id` パラメータは、GitHubのREST API上でissueを一意に識別するDB上の数値id（issueの「グローバルid」）を要求する仕様であり、GraphQL node id（`gh issue view --json id` が返す `I_kwDOTQmMZs8AAAABJImqWg` のような文字列）とは別物——REST数値idは `gh api repos/:owner/:repo/issues/<子> --jq .id`（例 `4907969114`）で取得する。GraphQL node idを渡すとエラーにならずサイレントに失敗しうるため、取り違えに気づきにくい（agent-marketplace#77で実機確認）。
+
 ## 補足: `gh` 呼び出しの実行確認を求める理由
 
 実行された呼び出しは、ツール結果・「バックグラウンドで実行中」の応答・エラーのいずれかを必ず返す。ターンがそのいずれも無いまま終わり、ユーザーが次に発言した場合、その呼び出しは実行されていない（構文ミスの可能性が高い）——「実行されたはず」と仮定すると、ラベルやマイルストーンが実際には作られていない事故になる。

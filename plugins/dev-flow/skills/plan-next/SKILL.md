@@ -43,7 +43,7 @@ argument-hint: "[目標バージョン。例: 0.2.0（省略すると選んだis
    - 複数行のテキストは一時ファイルに書き、`gh api --method PATCH repos/:owner/:repo/milestones/<番号> -F description=@<ファイル>` で渡す（`--method PATCH` は必須）。
 7. **文章だけでなく、issue単位の関係も設定する** — マイルストーンの説明文だけに順序情報を頼らない:
    - 選定した全issueをマイルストーンに割り当てる: `gh issue edit <n> --milestone "vX.Y.Z"`。
-   - 親issueをサブタスクに分割したような関係には、GitHubネイティブのsub-issues機能を使う: `gh issue edit <親> --add-sub-issue <子>`（または `gh issue edit <子> --parent <親>`。使えない場合は `gh api repos/:owner/:repo/issues/<親>/sub_issues -F sub_issue_id=<子のid>`）。
+   - 親issueをサブタスクに分割したような関係には、GitHubネイティブのsub-issues機能を使う: `gh issue edit --add-sub-issue` / `--parent` は存在しないフラグなので使わない（`gh version 2.86.0` で確認済み）。`gh api repos/:owner/:repo/issues/<親>/sub_issues -F sub_issue_id=<子のREST数値id>` が唯一の方法。「子のREST数値id」は `gh api repos/:owner/:repo/issues/<子> --jq .id` で取得する——`gh issue view <子> --json id` が返すGraphQL node id（例 `I_kwDOTQmMZs8AAAABJImqWg`）ではサイレントに失敗する。
    - 親子関係ではない「先にこれが必要」という順序依存には、依存する側のissue本文に `前提: #N` の一行を（まだ無ければ）追記する（GitHubが自動リンクする）。
 8. **報告する** — マイルストーンのURL/番号、選定したissue一覧（最終的なラベルと推奨順序付き）、スコープ外にしたissueとその理由を挙げる。各issueは `ship <n>` で実装すること、全issueがクローズしたらマイルストーン完了で `release` に引き継ぐことも伝える。
 
