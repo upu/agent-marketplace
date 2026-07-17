@@ -12,7 +12,7 @@ VS Code拡張を compile → test → パッケージ内容検証のゲートを
 
 ## 手順
 
-1. **前提を確認する** — リポジトリの `package.json` に `scripts.compile` / `scripts.test` / `scripts["check:package"]` / `scripts.package` が揃っているか確認する。`package.json` 自体が無い、またはいずれか欠けている場合は、欠けているスクリプト名を報告してここで中断する（このスキルはVS Code拡張構成のリポジトリのみが対象）。
+1. **前提を確認する** — リポジトリの `package.json` に `scripts.compile` / `scripts.test` / `scripts["check:package"]` / `scripts.package` が揃っているか確認する。`$ARGUMENTS` に `install` が含まれる場合は、手順6で使う `scripts["package:install"]` の有無もあわせてここで確認する（`install` 引数が無い通常実行では、このチェックは不要——従来通り4スクリプトのみ確認すればよい）。`package.json` 自体が無い、またはこの時点で確認すべきスクリプトのいずれかが欠けている場合は、欠けているスクリプト名を報告してここで中断する（このスキルはVS Code拡張構成のリポジトリのみが対象）。手順2〜5の時間のかかるテスト・検証を実行する前に、この時点で気づけるようにする。
 2. **Compile** — `npm run compile` を実行する。失敗したら中断して報告する。
 3. **Test** — `npm test` を実行する（VS Code拡張のテストランナー経由でVS Codeを起動するため時間がかかる。想定内）。結果のサマリを提示する。
 4. **ゲート** — テストが1つでも失敗したら、ここで停止しパッケージしない。失敗したテストを報告する。
