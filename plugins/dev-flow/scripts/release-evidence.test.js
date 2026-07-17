@@ -6,6 +6,7 @@ const {
   parseArgs,
   resolveTagInfo,
   dateRangeQualifier,
+  exclusiveLowerBoundISO,
   extractChangelogSection,
   readChangelogSection,
   fetchCommitLog,
@@ -60,6 +61,24 @@ test("dateRangeQualifier builds a from..to range when a previous tag exists", ()
 
 test("dateRangeQualifier builds an open-ended <=to qualifier for a first release", () => {
   assert.equal(dateRangeQualifier(null, "2026-02-01T00:00:00+09:00"), "<=2026-02-01T00:00:00+09:00");
+});
+
+test("exclusiveLowerBoundISO advances a tag's commit date by one second, preserving its offset", () => {
+  assert.equal(exclusiveLowerBoundISO("2026-02-01T00:00:00+09:00"), "2026-02-01T00:00:01+09:00");
+  assert.equal(exclusiveLowerBoundISO("2026-01-01T12:30:45-05:00"), "2026-01-01T12:30:46-05:00");
+});
+
+test("exclusiveLowerBoundISO rolls over minute/hour/day/month/year boundaries", () => {
+  assert.equal(exclusiveLowerBoundISO("2026-01-01T23:59:59+00:00"), "2026-01-02T00:00:00+00:00");
+  assert.equal(exclusiveLowerBoundISO("2025-12-31T23:59:59Z"), "2026-01-01T00:00:00Z");
+});
+
+test("exclusiveLowerBoundISO strips sub-second precision before advancing", () => {
+  assert.equal(exclusiveLowerBoundISO("2026-02-01T00:00:00.500+09:00"), "2026-02-01T00:00:01+09:00");
+});
+
+test("exclusiveLowerBoundISO throws on an unrecognized date format", () => {
+  assert.throws(() => exclusiveLowerBoundISO("not-a-date"), /unrecognized ISO 8601 date/);
 });
 
 test("extractChangelogSection extracts the matching version's section up to the next heading", () => {
@@ -251,4 +270,57 @@ test("collectReleaseEvidence returns changelog: null for a repo without CHANGELO
   const evidence = collectReleaseEvidence("0.1.0", { exec, readFileSync, cwd: "/repo" });
   assert.equal(evidence.changelog, null);
   assert.equal(evidence.previousTag, null);
+});
+
+test("collectReleaseEvidence excludes the previous tag's own commit date from the mergedPRs/ciHistory range (agent-marketplace#84)", () => {
+  // The previous tag's commit landed at exactly 2026-01-01T00:00:00+09:00 —
+  // e.g. the previous release's own `release: vX.Y.Z` PR merged at that
+  // instant. Before the fix, that raw date was used as the inclusive lower
+  // bound, so a PR/CI run at that exact instant would be re-included even
+  // though `commits` (via `git log <prev>..<tag>`) already excludes it.
+  const prevTagDate = "2026-01-01T00:00:00+09:00";
+  let searchQualifier;
+  let createdQualifier;
+  const exec = (cmd, args) => {
+    if (cmd === "git" && args[0] === "tag") {
+      return "v0.2.0\nv0.1.0\n";
+    }
+    if (cmd === "git" && args[0] === "log" && args[1] === "-1") {
+      return args[3] === "v0.2.0" ? "2026-02-01T00:00:00+09:00\n" : `${prevTagDate}\n`;
+    }
+    if (cmd === "git" && args[0] === "log") {
+      return "";
+    }
+    if (cmd === "gh" && args[0] === "issue") {
+      return "[]";
+    }
+    if (cmd === "gh" && args[0] === "pr") {
+      const searchArg = args[args.indexOf("--search") + 1];
+      searchQualifier = searchArg.replace(/^merged:/, "");
+      // Simulates GitHub's inclusive-both-ends range semantics: a PR that
+      // merged at exactly the previous tag's commit date is "in range" iff
+      // the qualifier's lower bound is <= that instant.
+      const [from] = searchQualifier.split("..");
+      const included = from <= prevTagDate;
+      return included
+        ? JSON.stringify([{ number: 69, title: "release: v0.1.0", mergedAt: prevTagDate, url: "u" }])
+        : "[]";
+    }
+    if (cmd === "gh" && args[0] === "run") {
+      createdQualifier = args[args.indexOf("--created") + 1];
+      return "[]";
+    }
+    throw new Error(`unexpected call: ${cmd} ${args.join(" ")}`);
+  };
+  const readFileSync = () => {
+    const err = new Error("no such file");
+    err.code = "ENOENT";
+    throw err;
+  };
+
+  const evidence = collectReleaseEvidence("0.2.0", { exec, readFileSync, cwd: "/repo" });
+
+  assert.equal(searchQualifier, "2026-01-01T00:00:01+09:00..2026-02-01T00:00:00+09:00");
+  assert.equal(createdQualifier, "2026-01-01T00:00:01+09:00..2026-02-01T00:00:00+09:00");
+  assert.deepEqual(evidence.mergedPRs, []);
 });

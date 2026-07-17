@@ -14,6 +14,7 @@
 ### Fixed
 
 - `ship` 手順13の `cleanup-merged-branches.js` が、linked worktree実行時に `git branch -D` の未捕捉エラーで失敗する不具合を修正した。`merge-pr.js` のworktree分岐がマージ済みPRのリモートブランチを既に削除しているため、手順13冒頭の `git fetch --prune origin` の時点で、そのworktree自身がチェックアウト中のブランチのupstreamも `[gone]` になり、マージ未確認のブランチと区別できないまま削除候補に混入していた。`git worktree list --porcelain` から全worktreeのチェックアウト中ブランチを収集し、削除候補から事前に除外するようにし、該当ブランチは `git branch -D` を試みず `SKIP:<branch> - checked out in a worktree` として報告するようにした。通常ツリー実行時の挙動に変更はない。
+- `release-evidence.js` の `mergedPRs`/`ciHistory` の日付範囲クエリが、前回リリース自身のPRやCI runを結果に混入させていた不具合を修正した。GitHub の `merged:`/`--created` の範囲指定は両端を含む仕様のため、前タグのコミット日時をそのまま下限に使うと、そのちょうど同じ瞬間に発生したもの——典型的には前回の `release: vX.Y.Z` PR自身——も一致してしまっていた。一方 `commits`（`git log <前タグ>..<対象タグ>`）は既にそれを除外していた。下限を「そのコミット日時の1秒後」（`exclusiveLowerBoundISO`）に変更し、`commits` と同じ「前タグを除外し対象タグまでを含む」境界に統一した。
 
 ## [0.5.0] - 2026-07-17
 
