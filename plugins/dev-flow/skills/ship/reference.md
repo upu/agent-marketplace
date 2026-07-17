@@ -61,6 +61,14 @@ agent-marketplace自身のv0.2.0リリース（2026-07-11）で `.github/workflo
 
 squashマージではローカルブランチの先端コミットが `origin/main` の履歴に含まれない。そのため `git branch --merged origin/main` ではマージ済みブランチが列挙されず、コミット差分ベースの判定はマージ済みでも空にならず誤判定になる——マージ方式によって挙動が変わるので、判定は必ずPRのマージ状態で行う。また upstream の `gone` はリモートブランチが削除済みであることを示すだけで、マージ済みを保証しない。
 
+## 手順13: worktree実行時にチェックアウト中ブランチをSKIPする理由
+
+手順11（`merge-pr.js`）はlinked worktreeでは意図的に `git checkout main` を行わない（`main` は主worktreeが使用中で必ず失敗するため）。そのためworktreeはマージ対象だったブランチにチェックアウトしたまま残る。一方、そのブランチのリモート側はworktree分岐の `git push origin --delete <branch>` で既に削除済みなので、手順13冒頭の `git fetch --prune origin` により、このworktreeが今まさにチェックアウトしているブランチのupstreamも `[gone]` になる——マージ未確認のブランチと見分けがつかない形で削除候補に混入する。
+
+`git branch -D` はチェックアウト中のブランチ（別worktreeで使用中の場合を含む）を構造的に拒否する（`error: cannot delete branch '...' used by worktree at '...'`）。以前はこれを「予期しないエラー」として `cleanup-merged-branches.js` 全体が終了コード1で落ちていた（agent-marketplace#80で実機再現）。
+
+修正は `git worktree list --porcelain` から現在チェックアウト中の全ブランチ（主worktree・全linked worktree）を収集し、PRのマージ状態を確認する*前*に削除候補から差し引く方式（`listCheckedOutBranches`）。`merge-pr.js` の `isLinkedWorktree`（`git rev-parse --git-common-dir` で構造的事実を見る）と同じ流儀で、「今自分がworktreeかどうか」を判定するのではなく「gitが実際に削除を拒否する状態か」を直接見ている——現在のworktreeが `git worktree list` に自分自身を含むため、通常ツリー実行時は除外対象が実質増えない（`main` 等、そもそも `[gone]` にならないブランチしか該当しない）。除外されたブランチは `SKIP:<branch> - checked out in a worktree` としてログに残り、実削除はそのworktree自体が撤去されて使用中でなくなった後の掃除サイクルに委ねる（issue #78のスコープ）。
+
 ## 手順14: ユーザー操作感に影響する変更で手動確認を提案する理由
 
 このスキルはマージまで自動で進むため、自動テストとCIがgreenでも、操作感（新しいUI・コマンドの使い勝手・出力の見た目・対話フロー）は人間が一度も触らないままリリースに進むことがあり得る。操作感の良し悪しはテストが原理的にカバーしない領域なので、報告時に手動確認を明示的に提案する。

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `ship` step 13's `cleanup-merged-branches.js` no longer fails with an uncaught `git branch -D` error when run inside a linked worktree. `merge-pr.js`'s worktree branch already deletes the merged PR's remote branch, so by the time step 13's `git fetch --prune origin` runs, the branch this very worktree still has checked out also shows a gone upstream — indistinguishable from an unconfirmed branch. The script now collects every branch checked out across all worktrees via `git worktree list --porcelain` and excludes them from deletion up front, reporting them as `SKIP:<branch> - checked out in a worktree` instead of attempting (and failing) `git branch -D` on them. Normal (non-worktree) tree behavior is unchanged.
+
 ## [0.5.0] - 2026-07-17
 
 ### Added
