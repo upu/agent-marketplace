@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-18
+
 ### Changed
 
 - `batch-ship` step 5 (confirming a wave finished before starting the next) now also removes the wave's worktrees once an issue's PR is confirmed merged, via a new `cleanup-worktrees.js` script, instead of only reporting leftover worktrees in the final report as step 7 used to. The `Agent` tool's `isolation: "worktree"` only auto-cleans up when a sub-agent made no changes, and `ship` always commits, so every wave otherwise left its worktree directories behind indefinitely. The script matches each confirmed-merged issue's PR head branch (via `gh pr view --json headRefName`) against `git worktree list --porcelain`'s structural state rather than having the orchestrator track paths returned by each `Agent` call by hand; a removal failure (e.g. a worktree still locked, or containing untracked files) is logged and skipped rather than forced or treated as fatal, so one stuck worktree never blocks cleanup of the rest of the wave. Step 7's report now describes the cleanup actually performed instead of just its status.
@@ -76,7 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented in the README how to pull in skill updates via `/plugin marketplace update upu-agent-marketplace`.
 - Extended the README's skill-writing conventions: SKILL.md bodies use short imperatives with structured branching (bullets/tables), and whys / field notes live in each skill's `reference.md`, referenced from the body by a single line.
 
-[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.6.0
 [0.5.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.5.0
 [0.4.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.4.0
 [0.3.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.3.0
