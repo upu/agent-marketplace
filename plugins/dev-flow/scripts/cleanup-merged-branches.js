@@ -6,6 +6,9 @@
 // gated on the branch's PR being confirmed MERGED with a `mergedAt`
 // timestamp; `git branch --merged`/commit-diff based checks are not used
 // because they misjudge squash-merged branches (see ship/reference.md).
+// A branch currently checked out in any worktree (including this one) is
+// excluded up front and reported as SKIP, since `git branch -D` refuses to
+// delete it regardless of merge status (see ship/reference.md).
 // Calls `gh`/`git` via execFileSync with argument arrays (no shell, no jq).
 //
 // Usage: node cleanup-merged-branches.js
@@ -53,6 +56,25 @@ function listGoneBranches(exec) {
 }
 
 /**
+ * Collect every branch name currently checked out across all worktrees
+ * (main tree plus any linked worktrees), via `git worktree list --porcelain`.
+ * A branch checked out anywhere is a branch `git branch -D` refuses to
+ * delete ("used by worktree at ..."), so this drives the exclusion in
+ * `cleanupMergedBranches` — same "ask git for the structural fact" approach
+ * as `isLinkedWorktree` in merge-pr.js, rather than assuming only the
+ * current worktree's branch can collide. Detached-HEAD worktrees have no
+ * `branch` line and contribute nothing.
+ */
+function listCheckedOutBranches(exec) {
+  const raw = run("git", ["worktree", "list", "--porcelain"], exec);
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("branch "))
+    .map((line) => line.slice("branch ".length).replace(/^refs\/heads\//, ""));
+}
+
+/**
  * Look up the merge status of the PR whose head branch is `branch`, via
  * `gh pr view <branch>` (matches a branch name to its PR directly, one call
  * per branch, same shape as merge-pr.js's `gh pr view <pr>` calls). Returns
@@ -88,7 +110,20 @@ function cleanupMergedBranches({ exec, log = console.log }) {
     return { deleted, skipped };
   }
 
+  // In a linked worktree, merge-pr.js's worktree branch already deleted the
+  // remote branch (see its own worktree path), so by the time this runs
+  // `git fetch --prune` has marked the branch this very worktree still has
+  // checked out as `[gone]` too. `git branch -D` on it fails structurally
+  // ("used by worktree at ..."), so exclude any checked-out branch up front
+  // rather than let that failure abort the whole cleanup run.
+  const checkedOut = new Set(listCheckedOutBranches(exec));
+
   for (const branch of branches) {
+    if (checkedOut.has(branch)) {
+      skipped.push({ branch, reason: "checked out in a worktree" });
+      log(`SKIP:${branch} - checked out in a worktree`);
+      continue;
+    }
     const status = fetchMergeStatus(branch, exec);
     if (!status.found) {
       skipped.push({ branch, reason: `no PR found (${status.reason})` });
@@ -128,7 +163,7 @@ function main() {
   process.exit(0);
 }
 
-module.exports = { listGoneBranches, fetchMergeStatus, cleanupMergedBranches };
+module.exports = { listGoneBranches, listCheckedOutBranches, fetchMergeStatus, cleanupMergedBranches };
 
 if (require.main === module) {
   main();

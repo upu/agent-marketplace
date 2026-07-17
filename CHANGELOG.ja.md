@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `ship` 手順13の `cleanup-merged-branches.js` が、linked worktree実行時に `git branch -D` の未捕捉エラーで失敗する不具合を修正した。`merge-pr.js` のworktree分岐がマージ済みPRのリモートブランチを既に削除しているため、手順13冒頭の `git fetch --prune origin` の時点で、そのworktree自身がチェックアウト中のブランチのupstreamも `[gone]` になり、マージ未確認のブランチと区別できないまま削除候補に混入していた。`git worktree list --porcelain` から全worktreeのチェックアウト中ブランチを収集し、削除候補から事前に除外するようにし、該当ブランチは `git branch -D` を試みず `SKIP:<branch> - checked out in a worktree` として報告するようにした。通常ツリー実行時の挙動に変更はない。
+
 ## [0.5.0] - 2026-07-17
 
 ### Added
