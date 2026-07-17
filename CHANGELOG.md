@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Codex CLI support: each plugin now ships a `.codex-plugin/plugin.json` and the repository root a `.agents/plugins/marketplace.json`, mirroring the Claude Code manifests (name/version/plugin list kept in sync, verified by tests), so `codex plugin marketplace add upu/agent-marketplace` can install the same plugins. README documents the Codex install steps.
 
+### Changed
+
+- `ship`'s final report now proposes a hands-on manual check whenever the change affects how the user operates the tool (new UI, new commands/options, changed workflows, changed input/output appearance, changed interactive flows). The proposal must pair concrete try-out steps (including prerequisites such as plugin updates or session reloads) with explicit pass criteria — what the user should see or get for the change to count as working — since automated tests and green CI can't cover look-and-feel, and the merge-by-default flow otherwise ships such changes without a human ever touching them. `batch-ship` forwards the same requirement to its sub-agents' reports and aggregates the proposals into a single "recommended manual checks" list at the end of its final report.
+
 ## [0.4.0] - 2026-07-15
 
 ### Changed
