@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `ship` step 13's `cleanup-merged-branches.js` no longer fails with an uncaught `git branch -D` error when run inside a linked worktree. `merge-pr.js`'s worktree branch already deletes the merged PR's remote branch, so by the time step 13's `git fetch --prune origin` runs, the branch this very worktree still has checked out also shows a gone upstream — indistinguishable from an unconfirmed branch. The script now collects every branch checked out across all worktrees via `git worktree list --porcelain` and excludes them from deletion up front, reporting them as `SKIP:<branch> - checked out in a worktree` instead of attempting (and failing) `git branch -D` on them. Normal (non-worktree) tree behavior is unchanged.
+- `release-evidence.js`'s `mergedPRs`/`ciHistory` date-range query no longer re-includes the previous release's own PR and CI runs. GitHub's `merged:`/`--created` range syntax is inclusive on both ends, so using the previous tag's raw commit date as the lower bound matched anything that landed at that exact instant — typically the previous `release: vX.Y.Z` PR itself — while `commits` (via `git log <prev>..<tag>`) already excluded it. The lower bound is now that date advanced by one second (`exclusiveLowerBoundISO`), matching `commits`'s "excludes the previous tag, includes the target tag" boundary.
 
 ## [0.5.0] - 2026-07-17
 

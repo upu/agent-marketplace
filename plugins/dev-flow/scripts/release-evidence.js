@@ -30,6 +30,12 @@
 // - Calls `gh`/`git` via execFileSync with argument arrays (no shell, no
 //   jq), matching merge-pr.js/cleanup-merged-branches.js/wait-ci.js/
 //   fetch-copilot-feedback.js.
+// - `mergedPRs`/`ciHistory`'s lower bound is the previous tag's commit date
+//   advanced by one second (`exclusiveLowerBoundISO`, agent-marketplace#84),
+//   not the raw date: GitHub's `merged:`/`--created` range syntax is
+//   inclusive on both ends, so the raw date would re-include the previous
+//   release's own PR/CI runs — unlike `commits`, which already excludes the
+//   previous tag by construction via `git log <prev>..<tag>`.
 //
 // Usage: node release-evidence.js <version>
 //   <version> is the released version without a leading "v" (e.g. "0.4.0");
@@ -105,9 +111,49 @@ function fetchTagDate(tag, exec) {
  * A `from..to` range, or `<=to` when there is no lower bound (first
  * release). Shared by the `gh pr list --search` and `gh run list --created`
  * date qualifiers, which both accept this syntax.
+ *
+ * Callers must pass an already-*exclusive* `fromISO` (see
+ * `exclusiveLowerBoundISO`) when it comes from a tag's own commit date —
+ * GitHub's date-range syntax is inclusive on both ends, so a raw commit
+ * date as `<from>` re-includes anything that landed at that exact instant.
  */
 function dateRangeQualifier(fromISO, toISO) {
   return fromISO ? `${fromISO}..${toISO}` : `<=${toISO}`;
+}
+
+/**
+ * `tagISO` advanced by one second, used to turn a tag's own commit date
+ * into an *exclusive* lower bound for `dateRangeQualifier`.
+ *
+ * Why this exists (agent-marketplace#84): `git log <prev>..<tag>` already
+ * excludes `<prev>`'s own commit by construction, but GitHub's `merged:`/
+ * `--created` search syntax used for `mergedPRs`/`ciHistory` is inclusive on
+ * both ends — passing the previous tag's raw commit date as `<from>`
+ * re-includes anything that merged/ran at that exact instant, which in
+ * practice is the previous release's own `release: vX.Y.Z` PR (and its CI
+ * runs). Advancing by one second closes that gap and makes `mergedPRs`/
+ * `ciHistory` use the same "excludes the previous tag, includes the target
+ * tag" boundary that `commits` already gets from git's range syntax.
+ *
+ * Manipulates the wall-clock digits directly (via a UTC-labelled `Date` used
+ * purely as a calendar calculator) rather than round-tripping through the
+ * instant, so the original numeric offset (e.g. `+09:00`) is preserved
+ * as-is instead of being collapsed to `Z` — the arithmetic is
+ * offset-independent since the offset is a constant shift.
+ */
+function exclusiveLowerBoundISO(tagISO) {
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(tagISO);
+  if (!match) {
+    throw new Error(`exclusiveLowerBoundISO: unrecognized ISO 8601 date: ${tagISO}`);
+  }
+  const [, datePart, offset] = match;
+  const asCalendar = new Date(`${datePart}Z`);
+  asCalendar.setUTCSeconds(asCalendar.getUTCSeconds() + 1);
+  const pad = (n) => String(n).padStart(2, "0");
+  const shiftedDatePart =
+    `${asCalendar.getUTCFullYear()}-${pad(asCalendar.getUTCMonth() + 1)}-${pad(asCalendar.getUTCDate())}` +
+    `T${pad(asCalendar.getUTCHours())}:${pad(asCalendar.getUTCMinutes())}:${pad(asCalendar.getUTCSeconds())}`;
+  return `${shiftedDatePart}${offset}`;
 }
 
 /**
@@ -221,7 +267,7 @@ function fetchCiHistory(qualifier, exec) {
 function collectReleaseEvidence(version, { exec, readFileSync, cwd }) {
   const { tag, previousTag } = resolveTagInfo(version, exec);
   const toISO = fetchTagDate(tag, exec);
-  const fromISO = previousTag ? fetchTagDate(previousTag, exec) : null;
+  const fromISO = previousTag ? exclusiveLowerBoundISO(fetchTagDate(previousTag, exec)) : null;
   const qualifier = dateRangeQualifier(fromISO, toISO);
   const commitRange = previousTag ? `${previousTag}..${tag}` : tag;
 
@@ -267,6 +313,7 @@ module.exports = {
   resolveTagInfo,
   fetchTagDate,
   dateRangeQualifier,
+  exclusiveLowerBoundISO,
   extractChangelogSection,
   readChangelogSection,
   fetchCommitLog,
