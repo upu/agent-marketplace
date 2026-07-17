@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-17
+
 ### Added
 
 - Codex CLI support: each plugin now ships a `.codex-plugin/plugin.json` and the repository root a `.agents/plugins/marketplace.json`, mirroring the Claude Code manifests (name/version/plugin list kept in sync, verified by tests), so `codex plugin marketplace add upu/agent-marketplace` can install the same plugins. README documents the Codex install steps.
@@ -62,7 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented in the README how to pull in skill updates via `/plugin marketplace update upu-agent-marketplace`.
 - Extended the README's skill-writing conventions: SKILL.md bodies use short imperatives with structured branching (bullets/tables), and whys / field notes live in each skill's `reference.md`, referenced from the body by a single line.
 
-[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.5.0
 [0.4.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.4.0
 [0.3.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.3.0
 [0.2.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.2.0

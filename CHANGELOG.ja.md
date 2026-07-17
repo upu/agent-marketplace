@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-17
+
 ### Added
 
 - Codex CLI対応: 各プラグインに `.codex-plugin/plugin.json` を、リポジトリルートに `.agents/plugins/marketplace.json` を追加した。Claude Code向けマニフェストと同一内容（name/version/プラグイン一覧の同期をテストで検証）で管理し、`codex plugin marketplace add upu/agent-marketplace` で同じプラグインを導入できるようにする。READMEにCodex導入手順を追記。
@@ -62,7 +64,8 @@
 - README に、スキル更新を取り込むための `/plugin marketplace update upu-agent-marketplace` の実行手順を明文化。
 - README のスキル執筆規約を拡張: SKILL.md 本文は「短い命令文＋構造化された分岐（箇条書き・表）」で書き、why・実測談は各スキルの `reference.md` に分離して本文から一行で誘導する方針を明文化。
 
-[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.5.0
 [0.4.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.4.0
 [0.3.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.3.0
 [0.2.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.2.0
