@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `batch-ship` step 5 (confirming a wave finished before starting the next) now also removes the wave's worktrees once an issue's PR is confirmed merged, via a new `cleanup-worktrees.js` script, instead of only reporting leftover worktrees in the final report as step 7 used to. The `Agent` tool's `isolation: "worktree"` only auto-cleans up when a sub-agent made no changes, and `ship` always commits, so every wave otherwise left its worktree directories behind indefinitely. The script matches each confirmed-merged issue's PR head branch (via `gh pr view --json headRefName`) against `git worktree list --porcelain`'s structural state rather than having the orchestrator track paths returned by each `Agent` call by hand; a removal failure (e.g. a worktree still locked, or containing untracked files) is logged and skipped rather than forced or treated as fatal, so one stuck worktree never blocks cleanup of the rest of the wave. Step 7's report now describes the cleanup actually performed instead of just its status.
+
 ### Fixed
 
 - `ship` step 13's `cleanup-merged-branches.js` no longer fails with an uncaught `git branch -D` error when run inside a linked worktree. `merge-pr.js`'s worktree branch already deletes the merged PR's remote branch, so by the time step 13's `git fetch --prune origin` runs, the branch this very worktree still has checked out also shows a gone upstream — indistinguishable from an unconfirmed branch. The script now collects every branch checked out across all worktrees via `git worktree list --porcelain` and excludes them from deletion up front, reporting them as `SKIP:<branch> - checked out in a worktree` instead of attempting (and failing) `git branch -D` on them. Normal (non-worktree) tree behavior is unchanged.

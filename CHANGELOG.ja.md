@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `batch-ship` 手順5（波の完了確認をしてから次の波へ進む判断）が、issueのマージが確認できた時点でその波が使ったworktreeを新しい `cleanup-worktrees.js` スクリプトで明示的に削除するようになった。従来の手順7は残ったworktreeを最終報告で「述べる」だけだった。`Agent` ツールの `isolation: "worktree"` はサブエージェントが変更を加えなかった場合のみ自動クリーンアップされ、`ship` は必ずコミットするため、波を起動するたびにworktreeディレクトリが際限なく残っていた。スクリプトはオーケストレーターが各 `Agent` 呼び出しの結果からパスを手で追跡する方式ではなく、マージ確認済みissueのPRのheadブランチ（`gh pr view --json headRefName`）を `git worktree list --porcelain` の構造的な状態と突き合わせる方式を採る。削除失敗（worktreeがロックされたまま・未追跡ファイルが残っているなど）はログに残してスキップするのみで、強制削除やエラー停止はしない——1件の削除失敗が波全体の掃除を止めない。手順7の報告内容も、掃除の状況を述べるだけでなく、実際に行った掃除の結果を報告する内容に更新した。
+
 ### Fixed
 
 - `ship` 手順13の `cleanup-merged-branches.js` が、linked worktree実行時に `git branch -D` の未捕捉エラーで失敗する不具合を修正した。`merge-pr.js` のworktree分岐がマージ済みPRのリモートブランチを既に削除しているため、手順13冒頭の `git fetch --prune origin` の時点で、そのworktree自身がチェックアウト中のブランチのupstreamも `[gone]` になり、マージ未確認のブランチと区別できないまま削除候補に混入していた。`git worktree list --porcelain` から全worktreeのチェックアウト中ブランチを収集し、削除候補から事前に除外するようにし、該当ブランチは `git branch -D` を試みず `SKIP:<branch> - checked out in a worktree` として報告するようにした。通常ツリー実行時の挙動に変更はない。
