@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `dev-flow` の PostToolUse フック `compile-if-ts.js` が、`npm run compile` の失敗を tsc の終了コードでそのまま返す（ハーネス上は `.ts` を編集するたびのブロックエラーになる）のをやめ、**助言**として報告するようになった——exit 0 で終了し、診断内容を `hookSpecificOutput.additionalContext` に載せる。`ship` 手順3は実装より先にテストを書くが、`npm run compile` はテストを含むプロジェクト全体を型チェックするため、red フェーズは全て設計どおりに失敗する。型エラーの発生源がテスト側なので実装ファイルの編集でも失敗し、フックをファイルパスで絞り込む回避策が効かないのはこのため。しかも失敗には情報が無かった——`stdio: "inherit"` で tsc の出力がキャプチャされず、報告は毎回 `No stderr output` になり、本物のタイポと想定どおりの red を区別できなかった。出力をキャプチャして届けるようにし（`ADVISORY_OUTPUT_MAX_CHARS`（4000文字）を超える分は切り詰める。export ひとつの欠落で数百件の診断が出るため）、「この編集自体は適用済みであること」「テストを先に書いた直後の red は想定どおりであること」を添える。強制力は従来どおり `ship` 手順6のゲート（CIと同じコマンド列のローカル実行）とCIが担う。コンパイル成功時が無出力である点、`shouldCompile` / `hasCompileScript` の挙動は変えていない。
+
 ## [0.6.0] - 2026-07-18
 
 ### Changed

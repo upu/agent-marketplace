@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `dev-flow`'s `compile-if-ts.js` PostToolUse hook now reports a failing `npm run compile` as advice — exit 0 with the diagnostics in `hookSpecificOutput.additionalContext` — instead of exiting with tsc's status, which the harness surfaced as a blocking error on every `.ts` edit. `ship` step 3 writes tests before the implementation exists, and `npm run compile` type-checks the whole project including those tests, so the entire red phase failed by design; because the type errors come from the tests, editing implementation files failed too, which is why filtering the hook by file path cannot fix it. The failures also carried no information: `stdio: "inherit"` left tsc's output uncaptured, so every report read `No stderr output` and a real typo was indistinguishable from an expected red. The output is now captured and passed along (truncated past `ADVISORY_OUTPUT_MAX_CHARS`, 4000 characters, since one missing export can produce hundreds of diagnostics), prefixed with a note that the edit itself was applied and that a red immediately after writing tests is expected. Enforcement is unchanged and still lives where it always did: `ship` step 6's gate (the CI command sequence run locally) and CI. A successful compile stays silent, and `shouldCompile` / `hasCompileScript` behavior is untouched.
+
 ## [0.6.0] - 2026-07-18
 
 ### Changed
