@@ -5,7 +5,12 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { shouldCompile, hasCompileScript } = require("./compile-if-ts.js");
+const {
+  shouldCompile,
+  hasCompileScript,
+  buildAdvisoryOutput,
+  ADVISORY_OUTPUT_MAX_CHARS,
+} = require("./compile-if-ts.js");
 
 test("shouldCompile: .ts ファイルでは compile する", () => {
   assert.equal(shouldCompile("C:\\repo\\src\\extension.ts"), true);
@@ -73,4 +78,41 @@ test("hasCompileScript: package.json が不正なJSONなら false", () => {
 test("hasCompileScript: このリポジトリ自身は package.json を持たない npm プロジェクト外なので false", () => {
   const repoRoot = path.join(__dirname, "..", "..", "..");
   assert.equal(hasCompileScript(repoRoot), false);
+});
+
+test("buildAdvisoryOutput: PostToolUse の additionalContext として診断本文を届ける", () => {
+  const output = buildAdvisoryOutput("src/a.ts(1,1): error TS2304: Cannot find name 'foo'.");
+
+  assert.equal(output.hookSpecificOutput.hookEventName, "PostToolUse");
+  assert.match(output.hookSpecificOutput.additionalContext, /error TS2304/);
+});
+
+test("buildAdvisoryOutput: テスト先行の red が想定どおりである旨を添える", () => {
+  // 失敗そのものではなく「進めてよいか」を判断できる情報を届けるのが目的。
+  const output = buildAdvisoryOutput("error TS2305");
+
+  assert.match(output.hookSpecificOutput.additionalContext, /テストを先に書いた直後/);
+});
+
+test("buildAdvisoryOutput: 長すぎる出力は切り詰め、切り詰めた旨を残す", () => {
+  const long = "e".repeat(ADVISORY_OUTPUT_MAX_CHARS + 500);
+
+  const { additionalContext } = buildAdvisoryOutput(long).hookSpecificOutput;
+
+  assert.ok(additionalContext.includes("e".repeat(100)));
+  assert.ok(additionalContext.length < long.length);
+  assert.match(additionalContext, /以降を省略/);
+});
+
+test("buildAdvisoryOutput: 出力が空でも additionalContext を組み立てる", () => {
+  for (const empty of ["", "   \n ", undefined]) {
+    const { additionalContext } = buildAdvisoryOutput(empty).hookSpecificOutput;
+    assert.match(additionalContext, /コンパイル出力なし/);
+  }
+});
+
+test("buildAdvisoryOutput: JSON としてそのまま標準出力へ書ける", () => {
+  const serialized = JSON.stringify(buildAdvisoryOutput("error TS1005"));
+
+  assert.deepEqual(JSON.parse(serialized), buildAdvisoryOutput("error TS1005"));
 });
