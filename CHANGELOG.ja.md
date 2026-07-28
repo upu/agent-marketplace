@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- `release-tag.js` が、リモートに既にタグが存在する場合に途中で終了する挙動をやめ、部分成功状態から再実行できるようになった。従来はタグ作成・GitHub Release作成・マイルストーンクローズが「タグの存在有無」という単一の判定だけで守られた一連の全か無かの処理になっており、タグをpush済みの状態でReleaseの作成が一時的なエラーで失敗した場合（あるいはその後マイルストーンのクローズが失敗した場合）、再実行のたびにタグの存在だけを見て残りの処理をすべて素通りしてしまっていた。これを `ensureTag` / `ensureRelease` / `closeMilestoneIfComplete` という独立した3段階に分割し、それぞれがリモートのタグ有無・`gh release view`・マイルストーンの残issue数という自身の現在状態を確認してから処理するようにした。再実行時は不足している処理だけが実行される。
 - `release` 手順12と `retro` の最新タグ取得が、POSIXシェル専用の構文（`set -o pipefail; ... | tail -20`、`git tag --sort=-creatordate | head -1`）に依存しなくなった。従来はWindows PowerShellで実行すると `gh run watch` やタグ検出自体が動かず、ワークフロー本来の成否ではなくシェル互換性で止まっていた。`release` 手順12は `gh run watch <run-id> --exit-status` をパイプせず直接実行するようになり、`tail` による出力の間引きより、`--exit-status` の終了コードが両シェルでそのまま伝播することを優先する。`retro` のタグ取得は `git for-each-ref --count=1 --sort=-creatordate '--format=%(refname:short)' refs/tags` を使い、`--format` 引数をクォートする——素のまま渡すとPowerShellが `%` を `ForEach-Object` のエイリアスと解釈し失敗する。
 
 - `dev-flow` の PreToolUse フック `block-main-commit.js` が、`git commit` の判定先ディレクトリを正しく解決するようになった——先頭の `cd <dir>` セグメントや、呼び出し自体の `-C <dir>` オプションを見るようになり、常にフック自身のcwd（セッションの作業ディレクトリ）で判定する挙動をやめた。従来はセッション側のブランチで判定していたため、偽陽性（セッションが `main`、コミット先が作業ブランチ：誤ってブロック）と偽陰性（セッションが作業ブランチ、コミット先が `main`：誤って許可）の両方が起きていた。実際に遭遇したのは前者（セッション中に別リポジトリへコミットしようとして誤ブロックされたケース）。ディレクトリを安全に解決できない場合（変数展開・コマンド展開、または実在しないパス）は、従来どおりフック自身のcwdにフォールバックする。あわせて `isGitCommitCommand` が、コマンド文字列をセグメント分割する前にheredoc本文を除去するようになり、heredoc内に書かれた `git commit` のコマンド例（例: `gh issue create --body "$(cat <<'EOF' ... EOF)"`）を実際の呼び出しと誤検知しなくなった。
