@@ -24,6 +24,19 @@ const { spawnSync } = require("node:child_process");
 const COMPILE_RELEVANT_EXTENSIONS = /\.(ts|tsx|mts|cts)$/i;
 
 /**
+ * Last path segment, treating both `/` and `\` as separators regardless of
+ * the OS this hook happens to run on. `path.basename` alone only recognizes
+ * `\` on Windows, but the harness can hand this hook a Windows-style path
+ * (e.g. from a payload captured on a Windows machine) while the hook itself
+ * — and this repo's CI — runs on Linux, so a POSIX-only split would silently
+ * treat the whole Windows path as a single (non-matching) file name.
+ */
+function basename(filePath) {
+  const normalized = filePath.replace(/\\/g, "/");
+  return path.posix.basename(normalized);
+}
+
+/**
  * Whether `base` (a bare file name, no directory) is a tsconfig variant —
  * `tsconfig.json` or `tsconfig.<anything>.json` (e.g. `tsconfig.build.json`).
  * Written as prefix/suffix checks rather than a single regex so the allowlist
@@ -51,7 +64,7 @@ function shouldCompile(filePath) {
   if (trimmed === "") {
     return true;
   }
-  return COMPILE_RELEVANT_EXTENSIONS.test(trimmed) || isTsconfigFile(path.basename(trimmed));
+  return COMPILE_RELEVANT_EXTENSIONS.test(trimmed) || isTsconfigFile(basename(trimmed));
 }
 
 /**
