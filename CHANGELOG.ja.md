@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-29
+
 ### Added
 
 - `release-evidence.js` に `--include-pr-iterations` オプションを追加した。指定すると、出力に `prIterations`（マージ済みPRごとのコミット数・提出レビュー数・インラインコメント数、および `ciHistory` が既に検出している失敗/再実行のうちそのPR自身のheadブランチに紐づくもの）が加わる。既定の軽量収集（`release` が使う経路）は従来通りの `gh` 呼び出し数のままにするため、この情報取得はオプション指定時のみ行う。`retro` 手順1はこのオプションを付けて呼び出すようになり、実装・レビュー反復が突出しているPRを、追加の手作業調査なしに摩擦の候補として指し示せるようになった。既存の6フィールド（`version`/`tag`/`previousTag`/`changelog`/`milestoneIssues`/`commits`/`mergedPRs`/`ciHistory`）は変更しておらず、`prIterations` はオプション指定時のみ追加される新規フィールドである。PRごとの詳細取得はマージ済みPR30件、インラインコメントはPRあたり300件を上限とし、いずれもページネーションを明示的に扱って上限到達時は `::warning::`/`reviewCommentsTruncated`/`truncated` で知らせる。対象PRが無いリリースや、レビュー・コメントが無いPRも、エラーにせず件数0として正常に扱う。
@@ -96,7 +98,8 @@
 - README に、スキル更新を取り込むための `/plugin marketplace update upu-agent-marketplace` の実行手順を明文化。
 - README のスキル執筆規約を拡張: SKILL.md 本文は「短い命令文＋構造化された分岐（箇条書き・表）」で書き、why・実測談は各スキルの `reference.md` に分離して本文から一行で誘導する方針を明文化。
 
-[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.7.0
 [0.6.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.6.0
 [0.5.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.5.0
 [0.4.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.4.0

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-29
+
 ### Added
 
 - `release-evidence.js` now accepts an `--include-pr-iterations` flag that adds a `prIterations` field (per merged PR: commit count, submitted review count, inline comment count, and any of `ciHistory`'s already-notable failure/re-run entries on that PR's own head branch) to its output, gated behind the flag so the default, always-on collection (used by `release`) stays at its previous `gh` call count. `retro` step 1 now passes this flag so it can point at PRs with outsized implementation/review iteration as friction candidates without additional manual investigation. The six pre-existing fields (`version`/`tag`/`previousTag`/`changelog`/`milestoneIssues`/`commits`/`mergedPRs`/`ciHistory`) are unchanged; `prIterations` is a new, additive field present only when the flag is passed. Per-PR detail is capped at 30 merged PRs and inline comments at 300 per PR, both pagination-explicit with a `::warning::`/`reviewCommentsTruncated`/`truncated` signal when a cap is hit, and a release with no merged PRs or a PR with no reviews/comments both come back as empty counts rather than erroring.
@@ -96,7 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented in the README how to pull in skill updates via `/plugin marketplace update upu-agent-marketplace`.
 - Extended the README's skill-writing conventions: SKILL.md bodies use short imperatives with structured branching (bullets/tables), and whys / field notes live in each skill's `reference.md`, referenced from the body by a single line.
 
-[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/upu/agent-marketplace/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.7.0
 [0.6.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.6.0
 [0.5.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.5.0
 [0.4.0]: https://github.com/upu/agent-marketplace/releases/tag/v0.4.0
