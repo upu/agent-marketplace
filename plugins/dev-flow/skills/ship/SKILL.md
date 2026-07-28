@@ -16,6 +16,7 @@ argument-hint: "[<issue番号>]"
    - **マイルストーン**: issueに未設定（`gh issue view $ARGUMENTS --json milestone`）の場合——
      - オープンなマイルストーンがちょうど1つ（`gh api repos/:owner/:repo/milestones?state=open --jq '.[].title'`）→ それに割り当てる（`gh issue edit $ARGUMENTS --milestone <title>`）。
      - 複数ある → どれに割り当てるか（またはどれにも割り当てないか）をユーザーに確認する。
+   - **操作感に影響するissueなら、実装前に操作モデルを合意する**: 新しいUI要素・操作手順の変更・パターンや文字列の入力欄を含む場合、テストを書く前に次の3点を1〜2行で宣言してユーザーの合意を取る。(1) 可逆なトグル（表示状態）か、戻せないワンショット操作か。(2) 非専門家がその機能に到達できるか（正規表現などの専門知識を前提にしていないか、構造化された入口があるか）。(3) 既存のどの操作と役割が重なるか。
 2. **最新mainからブランチを切る** — ファイルを触る前に行う。`git checkout main` → `git fetch origin && git pull` → `git checkout -b <type>/<slug>`（`feat/`・`fix/`・`docs/`・`ci/`・`refactor/` などの種別プレフィックス付き）。`git branch --show-current` で新しいブランチに切り替わったことを確認してから手順3へ。
 3. **テストを先に書く** — テスト対象の挙動が無い変更（純粋なdocs/CI/雑務のissue）のみ省略し、省略した旨を明示的に述べる。それ以外は:
    - リポジトリのテスト構成を調べる（既存の `*.test.*` / `*.spec.*` の配置・命名規則、`package.json` の `test` スクリプト、テストフレームワーク）。
