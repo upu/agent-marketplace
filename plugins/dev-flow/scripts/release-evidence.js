@@ -37,12 +37,17 @@
 //   release's own PR/CI runs — unlike `commits`, which already excludes the
 //   previous tag by construction via `git log <prev>..<tag>`.
 //
-// Usage: node release-evidence.js <version>
+// Usage: node release-evidence.js <version> [--include-pr-iterations]
 //   <version> is the released version without a leading "v" (e.g. "0.4.0");
 //   a leading "v" is also accepted and stripped.
+//   --include-pr-iterations additionally fetches, per merged PR, commit
+//   count / submitted review count / inline comment count and correlates
+//   ciHistory by head branch (see `fetchPrIterations` below for why this is
+//   opt-in rather than always-on).
 // Prints a single JSON object to stdout:
 //   { version, tag, previousTag, changelog, milestoneIssues, commits,
-//     mergedPRs, ciHistory }
+//     mergedPRs, ciHistory, prIterations? }
+//   `prIterations` is present only when --include-pr-iterations was passed.
 // Exit codes: 0 = collected (individual sources may still be empty arrays)
 //             1 = invalid/missing arguments, `gh`/`git` unavailable, the
 //                 target tag does not exist locally, or a `gh`/`git` call
@@ -57,22 +62,40 @@ const MILESTONE_ISSUE_LIMIT = 200;
 const PR_LIMIT = 200;
 const CI_RUN_LIMIT = 100;
 const FAILURE_CONCLUSIONS = ["failure", "cancelled", "timed_out", "startup_failure"];
+// Caps how many merged PRs get the (2 extra `gh` calls each) iteration
+// detail fetch when --include-pr-iterations is passed — a release with a
+// large mergedPRs list would otherwise multiply this script's `gh` call
+// count linearly, risking rate limits/slow runs. Kept well under `PR_LIMIT`
+// since retro only needs enough signal to spot outliers, not every PR.
+const PR_ITERATION_LIMIT = 30;
+// Explicit pagination cap for a single PR's inline (review) comments: at
+// most REVIEW_COMMENTS_MAX_PAGES pages of REVIEW_COMMENTS_PAGE_SIZE each,
+// so one unusually-discussed PR can't make the whole run paginate
+// indefinitely. `reviewCommentsTruncated` on the result tells the caller
+// the count is a lower bound when the cap is hit.
+const REVIEW_COMMENTS_PAGE_SIZE = 100;
+const REVIEW_COMMENTS_MAX_PAGES = 3;
 
 function parseArgs(argv) {
+  let includePrIterations = false;
   const positional = argv.filter((arg) => {
+    if (arg === "--include-pr-iterations") {
+      includePrIterations = true;
+      return false;
+    }
     if (arg.startsWith("--")) {
       throw new Error(`Unknown argument: ${arg}`);
     }
     return true;
   });
   if (positional.length !== 1) {
-    throw new Error("Usage: release-evidence.js <version>");
+    throw new Error("Usage: release-evidence.js <version> [--include-pr-iterations]");
   }
   const version = positional[0].replace(/^v/, "");
   if (!version) {
     throw new Error(`<version> must not be empty (got: ${positional[0]})`);
   }
-  return { version };
+  return { version, includePrIterations };
 }
 
 /** Run `cmd <args>`, surfacing stderr (not just "Command failed") on error. */
@@ -261,26 +284,109 @@ function fetchCiHistory(qualifier, exec) {
 }
 
 /**
+ * A single PR's inline (review) comment count, paginated explicitly (see
+ * REVIEW_COMMENTS_PAGE_SIZE/REVIEW_COMMENTS_MAX_PAGES above) rather than via
+ * `gh api --paginate`, which has no built-in cap and would let one
+ * heavily-discussed PR fetch an unbounded number of pages. `{owner}`/`{repo}`
+ * are `gh api`'s own template placeholders, resolved from the current repo.
+ */
+function fetchReviewCommentCount(prNumber, exec) {
+  let count = 0;
+  for (let page = 1; page <= REVIEW_COMMENTS_MAX_PAGES; page += 1) {
+    const raw = run(
+      "gh",
+      [
+        "api",
+        `repos/{owner}/{repo}/pulls/${prNumber}/comments`,
+        "--method", "GET",
+        "-f", `per_page=${REVIEW_COMMENTS_PAGE_SIZE}`,
+        "-f", `page=${page}`,
+      ],
+      exec
+    );
+    const items = JSON.parse(raw);
+    count += items.length;
+    if (items.length < REVIEW_COMMENTS_PAGE_SIZE) {
+      return { count, truncated: false };
+    }
+  }
+  return { count, truncated: true };
+}
+
+/**
+ * Implementation/review iteration signals for one merged PR (agent-marketplace#100):
+ * commit count (a push-count proxy), submitted review count, inline comment
+ * count, and the subset of `ciHistory`'s already-notable (failure/re-run)
+ * runs that happened on this PR's own head branch — free to compute since
+ * `ciHistory` is already fetched by the time this runs, no extra `gh` call.
+ */
+function fetchPrIteration(prNumber, ciHistory, exec) {
+  const raw = run("gh", ["pr", "view", String(prNumber), "--json", "commits,reviews,headRefName"], exec);
+  const data = JSON.parse(raw);
+  const { count: reviewComments, truncated: reviewCommentsTruncated } = fetchReviewCommentCount(prNumber, exec);
+  const relatedCiRuns = ciHistory
+    .filter((r) => r.headBranch === data.headRefName)
+    .map((r) => r.databaseId);
+  return {
+    number: prNumber,
+    commits: (data.commits || []).length,
+    reviews: (data.reviews || []).length,
+    reviewComments,
+    reviewCommentsTruncated,
+    relatedCiRuns,
+  };
+}
+
+/**
+ * Per-merged-PR iteration detail for every PR in `mergedPRs`, up to
+ * PR_ITERATION_LIMIT (see its comment above for why the cap exists).
+ * `truncated: true` tells the caller (retro, ultimately) that the entries
+ * list is a prefix, not the full mergedPRs list, so a short list isn't
+ * mistaken for "there were only N merged PRs this release". Handles zero
+ * merged PRs without making any `gh` calls.
+ */
+function fetchPrIterations(mergedPRs, ciHistory, exec) {
+  const truncated = mergedPRs.length > PR_ITERATION_LIMIT;
+  if (truncated) {
+    console.error(
+      `::warning::Merged PR count (${mergedPRs.length}) reached the cap of ${PR_ITERATION_LIMIT} for --include-pr-iterations; iteration details are missing for the remaining PRs.`
+    );
+  }
+  const entries = mergedPRs.slice(0, PR_ITERATION_LIMIT).map((pr) => fetchPrIteration(pr.number, ciHistory, exec));
+  return { truncated, entries };
+}
+
+/**
  * Orchestrates all five sources into one JSON-able object. `exec`/`readFileSync`
  * are injected so this is testable without real `gh`/`git`/filesystem access.
+ * `prIterations` (PR-level implementation/review iteration signals) is only
+ * computed, and only added to the result, when `includePrIterations` is
+ * true — the six pre-existing fields are otherwise untouched, per the
+ * issue's backward-compatibility requirement.
  */
-function collectReleaseEvidence(version, { exec, readFileSync, cwd }) {
+function collectReleaseEvidence(version, { exec, readFileSync, cwd, includePrIterations = false }) {
   const { tag, previousTag } = resolveTagInfo(version, exec);
   const toISO = fetchTagDate(tag, exec);
   const fromISO = previousTag ? exclusiveLowerBoundISO(fetchTagDate(previousTag, exec)) : null;
   const qualifier = dateRangeQualifier(fromISO, toISO);
   const commitRange = previousTag ? `${previousTag}..${tag}` : tag;
+  const mergedPRs = fetchMergedPRs(qualifier, exec);
+  const ciHistory = fetchCiHistory(qualifier, exec);
 
-  return {
+  const evidence = {
     version,
     tag,
     previousTag,
     changelog: readChangelogSection(version, { cwd, readFileSync }),
     milestoneIssues: fetchMilestoneIssues(version, exec),
     commits: fetchCommitLog(commitRange, exec),
-    mergedPRs: fetchMergedPRs(qualifier, exec),
-    ciHistory: fetchCiHistory(qualifier, exec),
+    mergedPRs,
+    ciHistory,
   };
+  if (includePrIterations) {
+    evidence.prIterations = fetchPrIterations(mergedPRs, ciHistory, exec);
+  }
+  return evidence;
 }
 
 function main() {
@@ -300,7 +406,10 @@ function main() {
     process.exit(1);
   }
   try {
-    const evidence = collectReleaseEvidence(args.version, { exec: execFileSync });
+    const evidence = collectReleaseEvidence(args.version, {
+      exec: execFileSync,
+      includePrIterations: args.includePrIterations,
+    });
     console.log(JSON.stringify(evidence, null, 2));
   } catch (err) {
     console.error(`::error::${err.message}`);
@@ -320,6 +429,9 @@ module.exports = {
   fetchMilestoneIssues,
   fetchMergedPRs,
   fetchCiHistory,
+  fetchReviewCommentCount,
+  fetchPrIteration,
+  fetchPrIterations,
   collectReleaseEvidence,
 };
 
