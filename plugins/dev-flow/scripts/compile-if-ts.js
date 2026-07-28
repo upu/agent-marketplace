@@ -17,17 +17,54 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
+// Extensions TypeScript projects commonly compile: plain/JSX sources and the
+// dual ESM/CJS module variants. `package.json` is deliberately excluded per
+// issue #99's design memo (option 1) — it never changes compile *output* by
+// itself, only npm scripts/deps, so including it would just add noise.
+const COMPILE_RELEVANT_EXTENSIONS = /\.(ts|tsx|mts|cts)$/i;
+
 /**
- * Whether an edited file warrants a tsc run. Only a file path that clearly
- * is not TypeScript skips the compile — a missing or malformed path
- * compiles anyway, so a payload-format change can never silently disable
- * the hook.
+ * Last path segment, treating both `/` and `\` as separators regardless of
+ * the OS this hook happens to run on. `path.basename` alone only recognizes
+ * `\` on Windows, but the harness can hand this hook a Windows-style path
+ * (e.g. from a payload captured on a Windows machine) while the hook itself
+ * — and this repo's CI — runs on Linux, so a POSIX-only split would silently
+ * treat the whole Windows path as a single (non-matching) file name.
+ */
+function basename(filePath) {
+  const normalized = filePath.replace(/\\/g, "/");
+  return path.posix.basename(normalized);
+}
+
+/**
+ * Whether `base` (a bare file name, no directory) is a tsconfig variant —
+ * `tsconfig.json` or `tsconfig.<anything>.json` (e.g. `tsconfig.build.json`).
+ * Written as prefix/suffix checks rather than a single regex so the allowlist
+ * stays easy to read and can't accidentally match unrelated files that merely
+ * contain "tsconfig" (e.g. `notatsconfig.json`).
+ */
+function isTsconfigFile(base) {
+  const lower = base.toLowerCase();
+  return lower === "tsconfig.json" || (lower.startsWith("tsconfig.") && lower.endsWith(".json"));
+}
+
+/**
+ * Whether an edited file warrants a tsc run. A missing or malformed path
+ * compiles anyway, so a payload-format change can never silently disable the
+ * hook. Everything else is judged against an explicit allowlist (issue #99
+ * design memo option 1) rather than excluding known-irrelevant files, so an
+ * extension this hook doesn't yet know about fails safe by skipping — same
+ * as before this change — instead of unexpectedly starting to compile.
  */
 function shouldCompile(filePath) {
   if (typeof filePath !== "string") {
     return true;
   }
-  return /\.ts$/i.test(filePath.trim()) || filePath.trim() === "";
+  const trimmed = filePath.trim();
+  if (trimmed === "") {
+    return true;
+  }
+  return COMPILE_RELEVANT_EXTENSIONS.test(trimmed) || isTsconfigFile(basename(trimmed));
 }
 
 /**

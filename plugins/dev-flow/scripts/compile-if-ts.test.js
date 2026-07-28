@@ -18,12 +18,28 @@ test("shouldCompile: .ts ファイルでは compile する", () => {
   assert.equal(shouldCompile("src/test/suite/extension.test.ts"), true);
 });
 
+test("shouldCompile: .tsx・.mts・.cts でも compile する", () => {
+  assert.equal(shouldCompile("src/App.tsx"), true);
+  assert.equal(shouldCompile("C:\\repo\\src\\Widget.tsx"), true);
+  assert.equal(shouldCompile("src/esm-entry.mts"), true);
+  assert.equal(shouldCompile("src/cjs-entry.cts"), true);
+});
+
+test("shouldCompile: tsconfig.json / tsconfig.*.json でも compile する", () => {
+  assert.equal(shouldCompile("tsconfig.json"), true);
+  assert.equal(shouldCompile("tsconfig.build.json"), true);
+  assert.equal(shouldCompile("packages/app/tsconfig.test.json"), true);
+  assert.equal(shouldCompile("C:\\repo\\tsconfig.json"), true);
+});
+
 test("shouldCompile: TypeScript と無関係なファイルでは compile しない", () => {
   assert.equal(shouldCompile("CHANGELOG.md"), false);
   assert.equal(shouldCompile("README.ja.md"), false);
   assert.equal(shouldCompile(".claude\\skills\\ship\\SKILL.md"), false);
   assert.equal(shouldCompile("package.json"), false);
   assert.equal(shouldCompile("scripts/prepare-release.js"), false);
+  assert.equal(shouldCompile("jsconfig.json"), false);
+  assert.equal(shouldCompile("src/notatsconfig.json"), false);
 });
 
 test("shouldCompile: file_path が取れないときは安全側に倒して compile する", () => {
