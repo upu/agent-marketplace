@@ -23,11 +23,11 @@
 
 `ship` の CI 待ち（手順9）は以前から `wait-ci.js` を使っていたが、`release` の CI 待ち（手順9）はagent-marketplace#83以前、素の `gh pr checks --watch --fail-fast` を単発フォアグラウンド呼び出しとして直接実行していた。この非対称は意図的な設計差ではない。共通スクリプト抽出（agent-marketplace#22）の受け入れ基準は当初から「`release` 手順10（Copilotレビュー待ち）」のみを対象にしており、`release` の**CI待ち**は最初からスコープ外だった。そのため、CIチェックが `origin/main` との `mergeable: CONFLICTING` により黙ってスキップされる問題（agent-marketplace#58、詳細は `ship` reference.md 手順9参照）に対する `wait-ci.js` 側の自動検知修正（agent-marketplace#64）も、`release` には一度も引き継がれていなかった。`release` のPRも保護ブランチ `main` へのマージが前提であり、`ship`/`batch-ship` 等の並行作業が先にマージされればコンフリクトは同様に起こり得る。発生すると、旧実装は該当チェックが二度と現れないまま単発呼び出しのタイムアウト（reference.md旧記載の例で600000ms=10分）まで無言で待ち続け、`CONFLICTING` という診断もなく単なる「タイムアウト」として処理されてしまっていた。そのため `release` 手順9も `wait-ci.js`（`CONFLICTING:` 検知を含む）に置き換えている。
 
-## 手順12: `tail` と `set -o pipefail` を付ける理由、背景実行を避ける理由
+## 手順12: `gh run watch` をパイプせず直接実行する理由（agent-marketplace#98）
 
-- `tail -20` は `gh run watch --exit-status` の数秒ごとの全表再出力を抑制する。
-- `set -o pipefail` は、失敗チェックの non-zero 終了コードをパイプ越しでも保持する（`--exit-status` と組み合わせて失敗を確実に検知する）。
-- バックグラウンド実行して後のターンで継ぎ足す運用は、CI 待機でツール呼び出しミスを誘発しやすいので避ける——「事後で実行されていないことに気づく」運用は再発しがち（注意事項の単発フォアグラウンド構成の根拠も同じ）。手順9は `wait-ci.js` が内部でポーリングと出力抑制を行うため、この配慮は不要（`tail`/`pipefail` を付けない）。
+- 旧実装は `set -o pipefail; gh run watch <run-id> --exit-status 2>&1 | tail -20` だった。`tail -20` で数秒ごとの全表再出力を抑制し、`set -o pipefail` でパイプ越しに non-zero 終了コードを保持する構成だが、どちらも POSIX シェル専用（`bash`/`zsh` 等）で Windows PowerShell では組み込みコマンドとして存在しない。
+- Windows と POSIX の両方で同じ意味・同じ終了判定にするため、パイプを外し `gh run watch <run-id> --exit-status` を単発フォアグラウンドで直接実行する構成に変更した（issue #98 設計メモの案1）。出力抑制より移植性と終了コード保持を優先する——`--exit-status` の終了コードがそのままコマンドの終了コードになるため、シェルの種類に関係なく non-zero を確実に検知できる。
+- バックグラウンド実行して後のターンで継ぎ足す運用は、CI 待機でツール呼び出しミスを誘発しやすいので避ける——「事後で実行されていないことに気づく」運用は再発しがち（注意事項の単発フォアグラウンド構成の根拠も同じ）。手順9は `wait-ci.js` が内部でポーリングと出力抑制を行うため、この配慮は不要。
 
 ## 手順10: wait-copilot-review.js の内部挙動と設計理由
 
