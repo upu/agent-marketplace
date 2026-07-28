@@ -6,9 +6,13 @@
 //
 // Runs on every push to `main`. Is a no-op unless CHANGELOG.md's
 // [Unreleased] section is currently empty (i.e. this push finalized a
-// release) AND no tag for that version exists yet — so ordinary feature
-// merges (which leave [Unreleased] non-empty) do nothing, and re-running
-// after a release already tagged does nothing either.
+// release) — so ordinary feature merges (which leave [Unreleased]
+// non-empty) do nothing. Once a release is detected, the tag, the GitHub
+// Release, and the milestone close are each handled by an independent
+// `ensure*`/`*IfComplete` stage that checks its own current state first, so
+// re-running after a partial failure (e.g. tag pushed but Release creation
+// hit a transient API error) resumes from wherever it stopped instead of
+// short-circuiting on a single "does the tag exist" check.
 //
 // Usage: node release-tag.js [repoRoot]
 "use strict";
@@ -104,6 +108,58 @@ function findOpenMilestone(title, exec) {
   return milestones.find((m) => m.title === title) || null;
 }
 
+/**
+ * Whether a GitHub Release named `tag` already exists. `gh release view`
+ * exits non-zero (and `runGh` throws) both when the release is genuinely
+ * missing and on transient API errors; either way the safe move for a
+ * resumable script is to treat "couldn't confirm it exists" as "doesn't
+ * exist yet" and let the subsequent create call surface any real problem.
+ */
+function releaseExists(tag, exec) {
+  try {
+    runGh(["release", "view", tag], exec);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Creates and pushes `tag` only if it isn't already on the remote, so a
+ * re-run after a partial failure (e.g. Release creation failed) never
+ * re-tags or re-pushes — `git push` on an existing tag would fail anyway,
+ * but checking first keeps the step a true no-op and the log unambiguous.
+ */
+function ensureTag(tag, exec, log) {
+  if (tagExists(tag, exec)) {
+    log(`TAG_EXISTS: ${tag} (skipping tag creation)`);
+    return;
+  }
+  exec("git", ["tag", tag], { stdio: "inherit" });
+  exec("git", ["push", "origin", tag], { stdio: "inherit" });
+  log(`TAG_CREATED: ${tag}`);
+}
+
+/**
+ * Creates the GitHub Release for `tag` only if it doesn't already exist, so
+ * re-running after e.g. a milestone-close failure doesn't attempt (and fail
+ * on) a duplicate `gh release create`.
+ */
+function ensureRelease(tag, body, root, exec, log) {
+  if (releaseExists(tag, exec)) {
+    log(`RELEASE_EXISTS: ${tag} (skipping release creation)`);
+    return;
+  }
+  const notesPath = path.join(root, `.release-notes-${tag.replace(/^v/, "")}.md`);
+  fs.writeFileSync(notesPath, `${body}\n`);
+  try {
+    runGh(["release", "create", tag, "--title", tag, "--notes-file", notesPath], exec);
+  } finally {
+    fs.rmSync(notesPath, { force: true });
+  }
+  log(`RELEASE_CREATED: ${tag}`);
+}
+
 /** Whether an open milestone with zero remaining open issues should be closed. */
 function shouldCloseMilestone(milestone) {
   return milestone != null && milestone.state === "open" && milestone.open_issues === 0;
@@ -137,23 +193,13 @@ function main() {
     return;
   }
   const tag = `v${section.version}`;
-  if (tagExists(tag, execFileSync)) {
-    console.log(`SKIP: tag ${tag} already exists`);
-    return;
-  }
 
-  execFileSync("git", ["tag", tag], { stdio: "inherit" });
-  execFileSync("git", ["push", "origin", tag], { stdio: "inherit" });
-
-  const notesPath = path.join(root, `.release-notes-${section.version}.md`);
-  fs.writeFileSync(notesPath, `${section.body}\n`);
-  try {
-    runGh(["release", "create", tag, "--title", tag, "--notes-file", notesPath], execFileSync);
-  } finally {
-    fs.rmSync(notesPath, { force: true });
-  }
-  console.log(`RELEASED: ${tag}`);
-
+  // Each stage independently checks its own current state before acting, so
+  // re-running after a partial failure (tag pushed but Release creation
+  // failed, or Release created but milestone close failed) resumes from
+  // wherever it stopped instead of bailing out on the tag-exists check.
+  ensureTag(tag, execFileSync, console.log);
+  ensureRelease(tag, section.body, root, execFileSync, console.log);
   closeMilestoneIfComplete(tag, execFileSync, console.log);
 }
 
@@ -161,8 +207,12 @@ module.exports = {
   isUnreleasedEmpty,
   latestReleaseSection,
   tagExists,
+  releaseExists,
   findOpenMilestone,
   shouldCloseMilestone,
+  ensureTag,
+  ensureRelease,
+  closeMilestoneIfComplete,
 };
 
 if (require.main === module) {
