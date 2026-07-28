@@ -8,7 +8,7 @@ argument-hint: "[リリース済みバージョン。例: 0.1.0]"
 
 出荷したばかりのリリースを振り返り、学んだことを「次回をより良くする仕組み」に着地させる。ワークフロー上 `release` スキルの後段に位置する（`plan-next` → `ship`/`batch-ship` → `release` → `retro`）。各ルールの背景・理由は同ディレクトリの [reference.md](reference.md) 参照。
 
-`$ARGUMENTS` はリリースしたばかりのバージョン（`v`無しで例: `0.1.0`）。空の場合は最新タグ（`git tag --sort=-creatordate | head -1`）から推定し、ユーザーに確認する。タグから推定するときは先頭の `v` を除いたものをバージョンとして扱う（以降、タグ名を指すときは`v`付きで表記する）。
+`$ARGUMENTS` はリリースしたばかりのバージョン（`v`無しで例: `0.1.0`）。空の場合は最新タグ（`git for-each-ref --count=1 --sort=-creatordate '--format=%(refname:short)' refs/tags`）から推定し、ユーザーに確認する。タグから推定するときは先頭の `v` を除いたものをバージョンとして扱う（以降、タグ名を指すときは`v`付きで表記する）。`--format` 引数はクォートする——`%(...)` を素のまま渡すと PowerShell が `%` を `ForEach-Object` のエイリアスとして解釈し失敗する。
 
 ## 仕組み——改善の行き先
 
