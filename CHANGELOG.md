@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ship` step 1 now includes an "agree on the operation model before implementing" sub-item for issues that affect UI feel (new UI elements, changed operation flows, or pattern/string input fields): before writing tests, declare in 1-2 lines (1) whether the operation is a reversible toggle or an unreversible one-shot action, (2) whether a non-expert can reach the feature (e.g., no regex literacy assumed, a structured entry point exists), and (3) which existing operation it overlaps with, and get user agreement. Per upu/Totonoe-Log v0.8.0's retro (17 issues / 5 days), three issues in that single release were reworked after merge because this wasn't decided upfront: #179→#191 (single-click row jump conflicted with text selection, redone as double-click + right-click menu), #180→#194 (a one-shot "mask and copy" button redone as a reversible display-state toggle), #195→#212 (regex-only mask targeting given a structured key-list entry point alongside it). None of these were catchable by CI or automated tests. `reference.md` now documents this table as the evidence for the rule.
+
 ### Fixed
 
 - `release-tag.js` can now resume from a partial failure instead of exiting once a tag already exists on the remote. Previously, tag creation, GitHub Release creation, and milestone closing ran as one all-or-nothing sequence guarded by a single "does the tag exist" check, so a transient failure creating the Release (or closing the milestone) after the tag had already been pushed left the release stuck: every re-run saw the tag and skipped straight past the steps that still needed to happen. The three steps are now independent `ensureTag`/`ensureRelease`/`closeMilestoneIfComplete` stages, each checking its own current state (tag on remote, `gh release view`, milestone's open-issue count) before acting, so a re-run only performs whatever is still missing.
